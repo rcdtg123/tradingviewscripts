@@ -1,0 +1,1100 @@
+//@version=6
+indicator(
+     "Unified Monthly Structure",
+     shorttitle = "MStruct",
+     overlay = true,
+     max_boxes_count = 50,
+     max_lines_count = 50,
+     max_labels_count = 50)
+
+// Pine requires every indicator to declare at least one unconditional global
+// output. The support zones themselves use conditional drawing objects, so this
+// invisible plot acts only as the indicator's stable output declaration.
+plot(na, title = "Internal output", display = display.none)
+
+// Version 1 derives both support and resistance from Monthly lows. The detector
+// is timeframe-agnostic so the Weekly module can reuse it after validation.
+
+//──────────────────────────────────────────────────────────────────────────────
+// Domain types
+//──────────────────────────────────────────────────────────────────────────────
+
+type Observation
+    float price
+    int timestamp
+
+type Zone
+    array<float> prices
+    array<int> timestamps
+    float low = na
+    float high = na
+    float center = na
+    int touches = 0
+    int firstTouch = na
+    int lastTouch = na
+    float averageSpreadMonths = 0.0
+
+type ResistanceCandidate
+    Zone zone
+    bool isMonthlyHigh
+
+//──────────────────────────────────────────────────────────────────────────────
+// Inputs
+//──────────────────────────────────────────────────────────────────────────────
+
+string GROUP_DATA = "1. Data and volatility"
+int monthlyLookback = input.int(120, "Completed Monthly candles", 24, 240, group = GROUP_DATA)
+int atrLength = input.int(14, "Daily ATR length", 2, 100, group = GROUP_DATA)
+int atrSmoothing = input.int(50, "Daily ATR% smoothing", 5, 250, group = GROUP_DATA)
+float clusterMultiplier = input.float(2.0, "Maximum cluster width × Daily ATR%", 0.25, 10.0, 0.25, group = GROUP_DATA)
+float approachAtrPercentMultiplier = input.float(0.75, "Approach width × Daily ATR%", 0.0, 5.0, 0.05, group = GROUP_DATA)
+float minimumApproachPercent = input.float(1.0, "Minimum approach width %", 0.0, 10.0, 0.25, group = GROUP_DATA)
+float maximumApproachPercent = input.float(7.0, "Maximum approach width %", 0.25, 25.0, 0.25, group = GROUP_DATA)
+
+string GROUP_QUALIFICATION = "2. Qualification and ranking"
+int minimumLows = input.int(2, "Minimum Monthly lows", 2, 20, group = GROUP_QUALIFICATION)
+int minimumResistanceLows = input.int(4, "Minimum Monthly lows for resistance", 2, 20, group = GROUP_QUALIFICATION)
+int displayedZones = input.int(5, "Nearest support zones to display", 1, 10, group = GROUP_QUALIFICATION)
+int displayedResistanceZones = input.int(3, "Nearest resistance zones to display", 1, 10, group = GROUP_QUALIFICATION)
+int minimumMonthlyHighs = input.int(2, "Minimum Monthly highs for MR", 2, 20, group = GROUP_QUALIFICATION)
+int displayedMonthlyHighZones = input.int(5, "Nearest MR zones to display", 1, 10, group = GROUP_QUALIFICATION)
+float maximumOverlapGroupSpanPercent = input.float(10.0, "Maximum overlap-group span %", 0.25, 25.0, 0.25, group = GROUP_QUALIFICATION)
+
+string GROUP_ALERTS = "3. Alerts"
+bool enableApproachAlerts = input.bool(true, "Alert when live price enters approach zone", group = GROUP_ALERTS)
+bool enableReachedAlerts = input.bool(true, "Alert when live price reaches support", group = GROUP_ALERTS)
+bool enableBreakAlerts = input.bool(true, "Alert when live price breaks support", group = GROUP_ALERTS)
+bool enableResistanceApproachAlerts = input.bool(true, "Alert when live price approaches resistance", group = GROUP_ALERTS)
+bool enableResistanceBreakoutAlerts = input.bool(true, "Alert on volume-confirmed resistance breakout", group = GROUP_ALERTS)
+float rearmDistanceAtr = input.float(0.25, "Rearm distance × Daily ATR", 0.0, 2.0, 0.05, group = GROUP_ALERTS)
+float breakoutConvictionAtr = input.float(0.25, "Breakout conviction × Daily ATR", 0.0, 3.0, 0.05, group = GROUP_ALERTS)
+
+string GROUP_STYLE = "4. Style"
+color developingColor = input.color(color.orange, "Developing zone (2 lows)", group = GROUP_STYLE)
+color establishedColor = input.color(color.blue, "Established zone (3+ lows)", group = GROUP_STYLE)
+color resistanceColor = input.color(color.red, "Resistance zone", group = GROUP_STYLE)
+color retestColor = input.color(color.lime, "Retest support", group = GROUP_STYLE)
+int zoneTransparency = input.int(85, "Zone transparency", 0, 100, group = GROUP_STYLE)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Pure calculation helpers
+//──────────────────────────────────────────────────────────────────────────────
+
+f_median(array<float> values) =>
+    array<float> sorted = array.copy(values)
+    array.sort(sorted, order.ascending)
+    int count = array.size(sorted)
+    float result = na
+    if count > 0
+        int middle = int(math.floor(count / 2.0))
+        result := count % 2 == 1 ? array.get(sorted, middle) :
+             (array.get(sorted, middle - 1) + array.get(sorted, middle)) / 2.0
+    result
+
+f_monthDistance(int firstTimestamp, int secondTimestamp) =>
+    int rawMonths =
+         (year(secondTimestamp) - year(firstTimestamp)) * 12 +
+         month(secondTimestamp) - month(firstTimestamp)
+    math.abs(rawMonths)
+
+f_refreshZone(Zone zone) =>
+    int count = array.size(zone.prices)
+    zone.touches := count
+    if count > 0
+        zone.low := array.min(zone.prices)
+        zone.high := array.max(zone.prices)
+        zone.center := f_median(zone.prices)
+        zone.firstTouch := array.min(zone.timestamps)
+        zone.lastTouch := array.max(zone.timestamps)
+
+        float totalSeparation = 0.0
+        int pairCount = 0
+        if count > 1
+            for leftIndex = 0 to count - 2
+                for rightIndex = leftIndex + 1 to count - 1
+                    totalSeparation += f_monthDistance(
+                         array.get(zone.timestamps, leftIndex),
+                         array.get(zone.timestamps, rightIndex))
+                    pairCount += 1
+        zone.averageSpreadMonths := pairCount > 0 ? totalSeparation / pairCount : 0.0
+    zone
+
+f_newSingleton(Observation observation) =>
+    Zone zone = Zone.new(
+         array.from(observation.price),
+         array.from(observation.timestamp))
+    f_refreshZone(zone)
+
+f_mergedZone(Zone first, Zone second) =>
+    array<float> prices = array.copy(first.prices)
+    array<int> timestamps = array.copy(first.timestamps)
+    for price in second.prices
+        array.push(prices, price)
+    for timestamp in second.timestamps
+        array.push(timestamps, timestamp)
+    Zone merged = Zone.new(prices, timestamps)
+    f_refreshZone(merged)
+
+f_zoneWidthPercent(Zone zone) =>
+    not na(zone.center) and zone.center != 0.0 ?
+         (zone.high - zone.low) / zone.center * 100.0 : na
+
+f_mergeEligible(Zone first, Zone second, float maximumWidthPercent) =>
+    float mergedLow = math.min(first.low, second.low)
+    float mergedHigh = math.max(first.high, second.high)
+    float rangeMidpoint = (mergedLow + mergedHigh) / 2.0
+    float widthPercent = rangeMidpoint != 0.0 ?
+         (mergedHigh - mergedLow) / math.abs(rangeMidpoint) * 100.0 : na
+    not na(widthPercent) and widthPercent <= maximumWidthPercent
+
+f_centerDistancePercent(Zone first, Zone second) =>
+    float denominator = math.max(math.abs((first.center + second.center) / 2.0), syminfo.mintick)
+    math.abs(first.center - second.center) / denominator * 100.0
+
+// Agglomerative complete-width clustering. Each observation starts in its own
+// cluster. On every iteration the closest eligible pair is merged. Because a
+// merge is accepted only when the entire resulting range fits the width limit,
+// chained observations can never produce an oversized zone. Membership is
+// exclusive, deterministic, and independent of the observations' time order.
+f_detectZones(array<Observation> observations, float maximumWidthPercent, int minimumTouchCount) =>
+    array<Zone> working = array.new<Zone>()
+    for observation in observations
+        array.push(working, f_newSingleton(observation))
+
+    bool canMerge = true
+    while canMerge and array.size(working) > 1
+        canMerge := false
+        int bestLeft = -1
+        int bestRight = -1
+        float bestDistance = na
+
+        for leftIndex = 0 to array.size(working) - 2
+            for rightIndex = leftIndex + 1 to array.size(working) - 1
+                Zone leftZone = array.get(working, leftIndex)
+                Zone rightZone = array.get(working, rightIndex)
+                if f_mergeEligible(leftZone, rightZone, maximumWidthPercent)
+                    float distance = f_centerDistancePercent(leftZone, rightZone)
+                    bool better = na(bestDistance) or distance < bestDistance
+                    if better
+                        bestDistance := distance
+                        bestLeft := leftIndex
+                        bestRight := rightIndex
+                        canMerge := true
+
+        if canMerge
+            Zone merged = f_mergedZone(
+                 array.get(working, bestLeft),
+                 array.get(working, bestRight))
+            array.set(working, bestLeft, merged)
+            array.remove(working, bestRight)
+
+    array<Zone> qualified = array.new<Zone>()
+    for zone in working
+        if zone.touches >= minimumTouchCount
+            array.push(qualified, zone)
+    qualified
+
+f_zoneIsStronger(Zone candidate, Zone incumbent) =>
+    bool strongerSpread = candidate.averageSpreadMonths > incumbent.averageSpreadMonths
+    bool equalSpread = candidate.averageSpreadMonths == incumbent.averageSpreadMonths
+    bool moreTouches = candidate.touches > incumbent.touches
+    bool equalTouches = candidate.touches == incumbent.touches
+    float candidateWidth = f_zoneWidthPercent(candidate)
+    float incumbentWidth = f_zoneWidthPercent(incumbent)
+    bool narrower = candidateWidth < incumbentWidth
+    strongerSpread or
+         (equalSpread and moreTouches) or
+         (equalSpread and equalTouches and narrower) or
+         (equalSpread and equalTouches and candidateWidth == incumbentWidth and candidate.center < incumbent.center)
+
+// Conviction ranking for decluttering deliberately differs from the historical
+// ranking above: repeated Monthly confirmation is primary.
+f_zoneHasHigherConviction(Zone candidate, Zone incumbent) =>
+    bool moreTouches = candidate.touches > incumbent.touches
+    bool equalTouches = candidate.touches == incumbent.touches
+    bool widerHistory = candidate.averageSpreadMonths > incumbent.averageSpreadMonths
+    bool equalHistory = candidate.averageSpreadMonths == incumbent.averageSpreadMonths
+    float candidateWidth = f_zoneWidthPercent(candidate)
+    float incumbentWidth = f_zoneWidthPercent(incumbent)
+    bool narrower = candidateWidth < incumbentWidth
+    moreTouches or
+         (equalTouches and widerHistory) or
+         (equalTouches and equalHistory and narrower)
+
+f_equalConviction(Zone first, Zone second) =>
+    first.touches == second.touches and
+         first.averageSpreadMonths == second.averageSpreadMonths and
+         f_zoneWidthPercent(first) == f_zoneWidthPercent(second)
+
+f_strengthLabel(Zone zone) => str.tostring(zone.touches) + "xM"
+
+f_sortStrongestFirst(array<Zone> zones) =>
+    array<Zone> sorted = array.copy(zones)
+    int count = array.size(sorted)
+    if count > 1
+        for leftIndex = 0 to count - 2
+            int strongestIndex = leftIndex
+            for candidateIndex = leftIndex + 1 to count - 1
+                if f_zoneIsStronger(array.get(sorted, candidateIndex), array.get(sorted, strongestIndex))
+                    strongestIndex := candidateIndex
+            if strongestIndex != leftIndex
+                Zone temporary = array.get(sorted, leftIndex)
+                array.set(sorted, leftIndex, array.get(sorted, strongestIndex))
+                array.set(sorted, strongestIndex, temporary)
+    sorted
+
+// Monthly support is the median qualifying low. Its alert zone is directional:
+// it starts at the support and extends upward so a falling price is detected as
+// it approaches support. Nothing is added below the support value.
+f_alertLow(Zone zone) => zone.center
+f_approachWidthPercent(float dailyAtrPercent) =>
+    math.max(
+         minimumApproachPercent,
+         math.min(maximumApproachPercent, approachAtrPercentMultiplier * dailyAtrPercent))
+
+f_alertHigh(Zone zone, float dailyAtrPercent) =>
+    zone.center * (1.0 + f_approachWidthPercent(dailyAtrPercent) / 100.0)
+
+f_resistanceLow(Zone zone, float dailyAtrPercent) =>
+    zone.center * (1.0 - f_approachWidthPercent(dailyAtrPercent) / 100.0)
+
+f_contains(Zone zone, float price, float dailyAtrPercent) =>
+    price >= f_alertLow(zone) and price <= f_alertHigh(zone, dailyAtrPercent)
+
+f_supportDistance(Zone zone, float price, float dailyAtrPercent) =>
+    float zoneLow = f_alertLow(zone)
+    float zoneHigh = f_alertHigh(zone, dailyAtrPercent)
+    price >= zoneLow and price <= zoneHigh ? 0.0 : math.max(price - zoneHigh, 0.0)
+
+f_sortNearestSupportFirst(array<Zone> zones, float price, float dailyAtrPercent) =>
+    array<Zone> sorted = array.copy(zones)
+    int count = array.size(sorted)
+    if count > 1
+        for leftIndex = 0 to count - 2
+            int nearestIndex = leftIndex
+            for candidateIndex = leftIndex + 1 to count - 1
+                Zone candidate = array.get(sorted, candidateIndex)
+                Zone incumbent = array.get(sorted, nearestIndex)
+                float candidateDistance = f_supportDistance(candidate, price, dailyAtrPercent)
+                float incumbentDistance = f_supportDistance(incumbent, price, dailyAtrPercent)
+                bool nearer = candidateDistance < incumbentDistance
+                bool equalDistance = candidateDistance == incumbentDistance
+                if nearer or (equalDistance and f_zoneIsStronger(candidate, incumbent))
+                    nearestIndex := candidateIndex
+            if nearestIndex != leftIndex
+                Zone temporary = array.get(sorted, leftIndex)
+                array.set(sorted, leftIndex, array.get(sorted, nearestIndex))
+                array.set(sorted, nearestIndex, temporary)
+    sorted
+
+f_resistanceDistance(Zone zone, float price, float dailyAtrPercent) =>
+    float zoneLow = f_resistanceLow(zone, dailyAtrPercent)
+    float zoneHigh = zone.center
+    price >= zoneLow and price <= zoneHigh ? 0.0 : math.max(zoneLow - price, 0.0)
+
+f_sortNearestResistanceFirst(array<Zone> zones, float price, float dailyAtrPercent) =>
+    array<Zone> sorted = array.copy(zones)
+    int count = array.size(sorted)
+    if count > 1
+        for leftIndex = 0 to count - 2
+            int nearestIndex = leftIndex
+            for candidateIndex = leftIndex + 1 to count - 1
+                Zone candidate = array.get(sorted, candidateIndex)
+                Zone incumbent = array.get(sorted, nearestIndex)
+                float candidateDistance = f_resistanceDistance(candidate, price, dailyAtrPercent)
+                float incumbentDistance = f_resistanceDistance(incumbent, price, dailyAtrPercent)
+                bool nearer = candidateDistance < incumbentDistance
+                bool equalDistance = candidateDistance == incumbentDistance
+                if nearer or (equalDistance and f_zoneIsStronger(candidate, incumbent))
+                    nearestIndex := candidateIndex
+            if nearestIndex != leftIndex
+                Zone temporary = array.get(sorted, leftIndex)
+                array.set(sorted, leftIndex, array.get(sorted, nearestIndex))
+                array.set(sorted, nearestIndex, temporary)
+    sorted
+
+f_sortHighestCenterFirst(array<Zone> zones) =>
+    array<Zone> sorted = array.copy(zones)
+    int count = array.size(sorted)
+    if count > 1
+        for leftIndex = 0 to count - 2
+            int highestIndex = leftIndex
+            for candidateIndex = leftIndex + 1 to count - 1
+                Zone candidate = array.get(sorted, candidateIndex)
+                Zone incumbent = array.get(sorted, highestIndex)
+                if candidate.center > incumbent.center
+                    highestIndex := candidateIndex
+            if highestIndex != leftIndex
+                Zone temporary = array.get(sorted, leftIndex)
+                array.set(sorted, leftIndex, array.get(sorted, highestIndex))
+                array.set(sorted, highestIndex, temporary)
+    sorted
+
+// Decluttering is intentionally separate from historical low/high clustering.
+// Repeatedly resolve the closest adjacent display pair within the configured
+// percentage span. Closest-first avoids a middle level attaching to the wrong
+// neighbor (e.g., preserve 233 while consolidating 218/206 into 206).
+f_declutterSupportDestinations(array<Zone> zones) =>
+    array<Zone> distinct = array.copy(zones)
+    bool canConsolidate = true
+    while canConsolidate and array.size(distinct) > 1
+        canConsolidate := false
+        int closestPairIndex = -1
+        float closestDistance = na
+        for index = 0 to array.size(distinct) - 2
+            Zone higher = array.get(distinct, index)
+            Zone lower = array.get(distinct, index + 1)
+            float distance = higher.center != 0.0 ?
+                 (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
+            bool insideCrowdingLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
+            if insideCrowdingLimit and closerThanCurrent
+                closestDistance := distance
+                closestPairIndex := index
+                canConsolidate := true
+        if canConsolidate
+            Zone higher = array.get(distinct, closestPairIndex)
+            Zone lower = array.get(distinct, closestPairIndex + 1)
+            bool higherWins = f_zoneHasHigherConviction(higher, lower)
+            bool lowerWins = f_zoneHasHigherConviction(lower, higher)
+            // Equal-conviction support retains the lower destination.
+            int removeIndex = higherWins and not lowerWins ?
+                 closestPairIndex + 1 : closestPairIndex
+            array.remove(distinct, removeIndex)
+    distinct
+
+f_declutterResistanceDestinations(array<Zone> zones) =>
+    array<Zone> distinct = array.copy(zones)
+    bool canConsolidate = true
+    while canConsolidate and array.size(distinct) > 1
+        canConsolidate := false
+        int closestPairIndex = -1
+        float closestDistance = na
+        for index = 0 to array.size(distinct) - 2
+            Zone lower = array.get(distinct, index)
+            Zone higher = array.get(distinct, index + 1)
+            float distance = lower.center != 0.0 ?
+                 (higher.center - lower.center) / math.abs(lower.center) * 100.0 : na
+            bool insideCrowdingLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
+            if insideCrowdingLimit and closerThanCurrent
+                closestDistance := distance
+                closestPairIndex := index
+                canConsolidate := true
+        if canConsolidate
+            Zone lower = array.get(distinct, closestPairIndex)
+            Zone higher = array.get(distinct, closestPairIndex + 1)
+            bool lowerWins = f_zoneHasHigherConviction(lower, higher)
+            bool higherWins = f_zoneHasHigherConviction(higher, lower)
+            // Equal-conviction resistance retains the higher destination.
+            int removeIndex = lowerWins and not higherWins ?
+                 closestPairIndex + 1 : closestPairIndex
+            array.remove(distinct, removeIndex)
+    distinct
+
+f_sortResistanceCandidatesAscending(array<ResistanceCandidate> candidates) =>
+    array<ResistanceCandidate> sorted = array.copy(candidates)
+    int count = array.size(sorted)
+    if count > 1
+        for leftIndex = 0 to count - 2
+            int lowestIndex = leftIndex
+            for candidateIndex = leftIndex + 1 to count - 1
+                ResistanceCandidate candidate = array.get(sorted, candidateIndex)
+                ResistanceCandidate incumbent = array.get(sorted, lowestIndex)
+                if candidate.zone.center < incumbent.zone.center
+                    lowestIndex := candidateIndex
+            if lowestIndex != leftIndex
+                ResistanceCandidate temporary = array.get(sorted, leftIndex)
+                array.set(sorted, leftIndex, array.get(sorted, lowestIndex))
+                array.set(sorted, lowestIndex, temporary)
+    sorted
+
+// Cross-family arbitration works on connected price neighborhoods. Monthly
+// touch count, temporal spread, and cluster width outrank type; MR preference
+// and the higher resistance destination are tie-breakers only.
+f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZones) =>
+    array<ResistanceCandidate> combined = array.new<ResistanceCandidate>()
+    for zone in oldResistanceZones
+        array.push(combined, ResistanceCandidate.new(zone, false))
+    for zone in mrZones
+        array.push(combined, ResistanceCandidate.new(zone, true))
+    combined := f_sortResistanceCandidatesAscending(combined)
+
+    array<ResistanceCandidate> survivors = array.new<ResistanceCandidate>()
+    int count = array.size(combined)
+    int componentStart = 0
+    while componentStart < count
+        int componentEnd = componentStart
+        while componentEnd + 1 < count
+            ResistanceCandidate current = array.get(combined, componentEnd)
+            ResistanceCandidate next = array.get(combined, componentEnd + 1)
+            float adjacentDistance = current.zone.center != 0.0 ?
+                 (next.zone.center - current.zone.center) / math.abs(current.zone.center) * 100.0 : na
+            if not na(adjacentDistance) and adjacentDistance <= maximumOverlapGroupSpanPercent
+                componentEnd += 1
+            else
+                break
+
+        int strongestIndex = componentStart
+        for index = componentStart to componentEnd
+            ResistanceCandidate componentCandidate = array.get(combined, index)
+            ResistanceCandidate incumbent = array.get(combined, strongestIndex)
+            bool candidateStronger = f_zoneHasHigherConviction(
+                 componentCandidate.zone, incumbent.zone)
+            bool equalStrength = f_equalConviction(componentCandidate.zone, incumbent.zone)
+            bool mrTieBreak = equalStrength and componentCandidate.isMonthlyHigh and not incumbent.isMonthlyHigh
+            bool higherDestinationTieBreak =
+                 equalStrength and componentCandidate.isMonthlyHigh == incumbent.isMonthlyHigh and
+                 componentCandidate.zone.center > incumbent.zone.center
+            if candidateStronger or mrTieBreak or higherDestinationTieBreak
+                strongestIndex := index
+
+        array.push(survivors, array.get(combined, strongestIndex))
+        componentStart := componentEnd + 1
+    survivors
+
+f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>
+    if na(firstCenter) or na(secondCenter)
+        false
+    else
+        float denominator = math.max(math.abs((firstCenter + secondCenter) / 2.0), syminfo.mintick)
+        math.abs(firstCenter - secondCenter) / denominator * 100.0 <= maximumWidthPercent / 2.0
+
+//──────────────────────────────────────────────────────────────────────────────
+// Confirmed source data
+//──────────────────────────────────────────────────────────────────────────────
+
+[confirmedMonthlyHigh, confirmedMonthlyLow, confirmedMonthlyTime] = request.security(
+     syminfo.tickerid,
+     "1M",
+     [high[1], low[1], time_close[1]],
+     lookahead = barmerge.lookahead_on)
+
+[confirmedDailyAtr, confirmedDailyAtrPercent] = request.security(
+     syminfo.tickerid,
+     "1D",
+     [ta.atr(atrLength)[1], ta.sma(ta.atr(atrLength) / close * 100.0, atrSmoothing)[1]],
+     lookahead = barmerge.lookahead_on)
+
+// The extended-session ticker makes both the current cumulative Daily volume
+// and the historical baseline use the same session definition. On instruments
+// without extended trading it naturally resolves to the regular session.
+string extendedTickerId = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
+[currentExtendedDailyVolume, prior20DayAverageExtendedVolume] = request.security(
+     extendedTickerId,
+     "1D",
+     [volume, ta.sma(volume, 20)[1]],
+     lookahead = barmerge.lookahead_off)
+
+var array<Observation> monthlyLowObservations = array.new<Observation>()
+var array<Observation> monthlyHighObservations = array.new<Observation>()
+bool newConfirmedMonth =
+     not na(confirmedMonthlyTime) and
+     (na(confirmedMonthlyTime[1]) or confirmedMonthlyTime != confirmedMonthlyTime[1])
+
+if newConfirmedMonth and not na(confirmedMonthlyLow) and not na(confirmedMonthlyHigh)
+    array.push(monthlyLowObservations, Observation.new(confirmedMonthlyLow, confirmedMonthlyTime))
+    array.push(monthlyHighObservations, Observation.new(confirmedMonthlyHigh, confirmedMonthlyTime))
+    if array.size(monthlyLowObservations) > monthlyLookback
+        array.shift(monthlyLowObservations)
+        array.shift(monthlyHighObservations)
+
+float maximumClusterWidthPercent = confirmedDailyAtrPercent * clusterMultiplier
+array<Zone> detectedZones = array.new<Zone>()
+array<Zone> detectedMonthlyHighZones = array.new<Zone>()
+if barstate.islast and array.size(monthlyLowObservations) >= minimumLows and not na(maximumClusterWidthPercent)
+    detectedZones := f_sortStrongestFirst(
+         f_detectZones(monthlyLowObservations, maximumClusterWidthPercent, minimumLows))
+if barstate.islast and array.size(monthlyHighObservations) >= minimumMonthlyHighs and not na(maximumClusterWidthPercent)
+    detectedMonthlyHighZones := f_sortStrongestFirst(
+         f_detectZones(monthlyHighObservations, maximumClusterWidthPercent, minimumMonthlyHighs))
+
+//──────────────────────────────────────────────────────────────────────────────
+// Classification: keep every detected zone, expose only support/current zones
+//──────────────────────────────────────────────────────────────────────────────
+
+// The prior live price is declared before shortlist construction so a fast gap
+// retains, for one execution, every support that was visible immediately before
+// the gap. This lets the alert engine report all crossed displayed supports.
+varip float previousLivePrice = na
+varip array<float> latchedResistanceCenters = array.new<float>()
+varip array<float> mrStateCenters = array.new<float>()
+varip array<bool> mrLatched = array.new<bool>()
+varip array<bool> mrApproachSent = array.new<bool>()
+varip array<bool> mrBreakoutSent = array.new<bool>()
+varip array<bool> mrRetestActive = array.new<bool>()
+varip array<bool> mrRetestSent = array.new<bool>()
+varip array<float> mrBreakoutVolume = array.new<float>()
+varip array<int> mrOriginalRank = array.new<int>()
+
+f_mrStateIndex(float center) =>
+    int result = -1
+    int count = array.size(mrStateCenters)
+    if count > 0
+        for index = 0 to count - 1
+            if math.abs(array.get(mrStateCenters, index) - center) <= syminfo.mintick
+                result := index
+                break
+    if result == -1
+        array.push(mrStateCenters, center)
+        array.push(mrLatched, false)
+        array.push(mrApproachSent, false)
+        array.push(mrBreakoutSent, false)
+        array.push(mrRetestActive, false)
+        array.push(mrRetestSent, false)
+        array.push(mrBreakoutVolume, na)
+        array.push(mrOriginalRank, 0)
+        result := array.size(mrStateCenters) - 1
+    result
+
+f_findMrState(float center) =>
+    int result = -1
+    int count = array.size(mrStateCenters)
+    if count > 0
+        for index = 0 to count - 1
+            if math.abs(array.get(mrStateCenters, index) - center) <= syminfo.mintick
+                result := index
+                break
+    result
+
+f_isLatchedResistance(float center) =>
+    bool result = false
+    int count = array.size(latchedResistanceCenters)
+    if count > 0
+        for index = 0 to count - 1
+            if math.abs(array.get(latchedResistanceCenters, index) - center) <= syminfo.mintick
+                result := true
+                break
+    result
+
+f_latchResistance(float center) =>
+    if not f_isLatchedResistance(center)
+        array.push(latchedResistanceCenters, center)
+
+f_unlatchResistance(float center) =>
+    int count = array.size(latchedResistanceCenters)
+    if count > 0
+        for index = count - 1 to 0
+            if math.abs(array.get(latchedResistanceCenters, index) - center) <= syminfo.mintick
+                array.remove(latchedResistanceCenters, index)
+
+array<Zone> supportZones = array.new<Zone>()
+array<Zone> resistanceZones = array.new<Zone>()
+array<Zone> monthlyHighResistanceZones = array.new<Zone>()
+array<Zone> retestZones = array.new<Zone>()
+Zone currentZone = na
+float shortlistReferencePrice = math.max(close, nz(previousLivePrice, close))
+float resistanceReferencePrice = math.min(close, nz(previousLivePrice, close))
+
+if barstate.islast and array.size(detectedZones) > 0 and not na(confirmedDailyAtr)
+    for zone in detectedZones
+        float alertLow = f_alertLow(zone)
+        bool latchedAsResistance = f_isLatchedResistance(zone.center)
+        bool hasResistanceConfirmation = zone.touches >= minimumResistanceLows
+        bool qualifiesAsResistance =
+             hasResistanceConfirmation and
+             (alertLow > resistanceReferencePrice or latchedAsResistance)
+        if alertLow <= shortlistReferencePrice and not qualifiesAsResistance
+            array.push(supportZones, zone)
+        if qualifiesAsResistance
+            array.push(resistanceZones, zone)
+    supportZones := f_sortHighestCenterFirst(supportZones)
+    supportZones := f_declutterSupportDestinations(supportZones)
+    supportZones := f_sortNearestSupportFirst(supportZones, shortlistReferencePrice, confirmedDailyAtrPercent)
+    resistanceZones := f_sortNearestResistanceFirst(resistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
+    resistanceZones := f_declutterResistanceDestinations(resistanceZones)
+
+    // Alerts and drawings intentionally consume the same visible shortlist.
+    // A qualified zone outside this list remains internal and cannot alert.
+    int visibleZoneCount = math.min(displayedZones, array.size(supportZones))
+    if visibleZoneCount > 0
+        for index = 0 to visibleZoneCount - 1
+            Zone zone = array.get(supportZones, index)
+            if f_contains(zone, close, confirmedDailyAtrPercent)
+                if na(currentZone) or f_zoneIsStronger(zone, currentZone)
+                    currentZone := zone
+
+if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confirmedDailyAtr)
+    for zone in detectedMonthlyHighZones
+        int mrStateIndex = f_findMrState(zone.center)
+        bool isRetest = mrStateIndex >= 0 and array.get(mrRetestActive, mrStateIndex)
+        if isRetest
+            array.push(retestZones, zone)
+        else if zone.center > resistanceReferencePrice
+            array.push(monthlyHighResistanceZones, zone)
+    monthlyHighResistanceZones := f_sortNearestResistanceFirst(
+         monthlyHighResistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
+    monthlyHighResistanceZones := f_declutterResistanceDestinations(monthlyHighResistanceZones)
+    array<ResistanceCandidate> resistanceSurvivors = f_arbitrateResistanceFamilies(
+         resistanceZones, monthlyHighResistanceZones)
+    array.clear(resistanceZones)
+    array.clear(monthlyHighResistanceZones)
+    for survivor in resistanceSurvivors
+        if survivor.isMonthlyHigh
+            array.push(monthlyHighResistanceZones, survivor.zone)
+        else
+            array.push(resistanceZones, survivor.zone)
+    while array.size(monthlyHighResistanceZones) > displayedMonthlyHighZones
+        array.pop(monthlyHighResistanceZones)
+    while array.size(retestZones) > displayedMonthlyHighZones
+        array.pop(retestZones)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Rendering: consumers of detector output only
+//──────────────────────────────────────────────────────────────────────────────
+
+var array<box> renderedBoxes = array.new<box>()
+var array<line> renderedLines = array.new<line>()
+var array<label> renderedLabels = array.new<label>()
+
+f_clearDrawings() =>
+    for drawing in renderedBoxes
+        box.delete(drawing)
+    for drawing in renderedLines
+        line.delete(drawing)
+    for drawing in renderedLabels
+        label.delete(drawing)
+    array.clear(renderedBoxes)
+    array.clear(renderedLines)
+    array.clear(renderedLabels)
+
+if barstate.islast
+    f_clearDrawings()
+    int countToDraw = math.min(displayedZones, array.size(supportZones))
+    if countToDraw > 0
+        for index = 0 to countToDraw - 1
+            Zone zone = array.get(supportZones, index)
+            color zoneColor = zone.touches == 2 ? developingColor : establishedColor
+            float zoneLow = f_alertLow(zone)
+            float zoneHigh = f_alertHigh(zone, confirmedDailyAtrPercent)
+            box zoneBox = box.new(
+                 left = zone.firstTouch,
+                 top = zoneHigh,
+                 right = time_close,
+                 bottom = zoneLow,
+                 xloc = xloc.bar_time,
+                 extend = extend.right,
+                 border_color = zoneColor,
+                 bgcolor = color.new(zoneColor, zoneTransparency))
+            line centerLine = line.new(
+                 x1 = zone.firstTouch,
+                 y1 = zone.center,
+                 x2 = time_close,
+                 y2 = zone.center,
+                 xloc = xloc.bar_time,
+                 extend = extend.right,
+                 color = zoneColor,
+                 style = line.style_dashed)
+            string labelText = "M" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick)
+            label zoneLabel = label.new(
+                 x = chart.left_visible_bar_time,
+                 y = zone.center,
+                 text = labelText,
+                 xloc = xloc.bar_time,
+                 style = label.style_label_left,
+                 color = zoneColor,
+                 textcolor = color.white)
+            array.push(renderedBoxes, zoneBox)
+            array.push(renderedLines, centerLine)
+            array.push(renderedLabels, zoneLabel)
+
+    int resistanceCountToDraw = math.min(displayedResistanceZones, array.size(resistanceZones))
+    if resistanceCountToDraw > 0
+        for index = 0 to resistanceCountToDraw - 1
+            Zone zone = array.get(resistanceZones, index)
+            float zoneLow = f_resistanceLow(zone, confirmedDailyAtrPercent)
+            float zoneHigh = zone.center
+            box zoneBox = box.new(
+                 left = zone.firstTouch,
+                 top = zoneHigh,
+                 right = time_close,
+                 bottom = zoneLow,
+                 xloc = xloc.bar_time,
+                 extend = extend.right,
+                 border_color = resistanceColor,
+                 bgcolor = color.new(resistanceColor, zoneTransparency))
+            line centerLine = line.new(
+                 x1 = zone.firstTouch,
+                 y1 = zone.center,
+                 x2 = time_close,
+                 y2 = zone.center,
+                 xloc = xloc.bar_time,
+                 extend = extend.right,
+                 color = resistanceColor,
+                 style = line.style_dashed)
+            string labelText = "R" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick)
+            label zoneLabel = label.new(
+                 x = chart.left_visible_bar_time,
+                 y = zone.center,
+                 text = labelText,
+                 xloc = xloc.bar_time,
+                 style = label.style_label_left,
+                 color = resistanceColor,
+                 textcolor = color.white)
+            array.push(renderedBoxes, zoneBox)
+            array.push(renderedLines, centerLine)
+            array.push(renderedLabels, zoneLabel)
+
+    int mrCountToDraw = math.min(displayedMonthlyHighZones, array.size(monthlyHighResistanceZones))
+    if mrCountToDraw > 0
+        for index = 0 to mrCountToDraw - 1
+            Zone zone = array.get(monthlyHighResistanceZones, index)
+            float zoneLow = f_resistanceLow(zone, confirmedDailyAtrPercent)
+            box zoneBox = box.new(
+                 left = zone.firstTouch, top = zone.center, right = time_close, bottom = zoneLow,
+                 xloc = xloc.bar_time, extend = extend.right,
+                 border_color = resistanceColor,
+                 bgcolor = color.new(resistanceColor, zoneTransparency))
+            line centerLine = line.new(
+                 x1 = zone.firstTouch, y1 = zone.center, x2 = time_close, y2 = zone.center,
+                 xloc = xloc.bar_time, extend = extend.right,
+                 color = resistanceColor, style = line.style_dashed)
+            label zoneLabel = label.new(
+                 x = chart.left_visible_bar_time, y = zone.center,
+                 text = "MR" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick),
+                 xloc = xloc.bar_time, style = label.style_label_left,
+                 color = resistanceColor, textcolor = color.white)
+            array.push(renderedBoxes, zoneBox)
+            array.push(renderedLines, centerLine)
+            array.push(renderedLabels, zoneLabel)
+
+    int retestCountToDraw = array.size(retestZones)
+    if retestCountToDraw > 0
+        for index = 0 to retestCountToDraw - 1
+            Zone zone = array.get(retestZones, index)
+            float zoneHigh = f_alertHigh(zone, confirmedDailyAtrPercent)
+            box zoneBox = box.new(
+                 left = zone.firstTouch, top = zoneHigh, right = time_close, bottom = zone.center,
+                 xloc = xloc.bar_time, extend = extend.right,
+                 border_color = retestColor, bgcolor = color.new(retestColor, zoneTransparency))
+            line centerLine = line.new(
+                 x1 = zone.firstTouch, y1 = zone.center, x2 = time_close, y2 = zone.center,
+                 xloc = xloc.bar_time, extend = extend.right,
+                 color = retestColor, style = line.style_dashed)
+            label zoneLabel = label.new(
+                 x = chart.left_visible_bar_time, y = zone.center,
+                 text = "RT" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick),
+                 xloc = xloc.bar_time, style = label.style_label_left,
+                 color = retestColor, textcolor = color.white)
+            array.push(renderedBoxes, zoneBox)
+            array.push(renderedLines, centerLine)
+            array.push(renderedLabels, zoneLabel)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Per-zone intraday alert state
+//──────────────────────────────────────────────────────────────────────────────
+
+// `varip` collections persist across realtime updates of the open chart bar.
+// That persistence is required to suppress duplicate tick-by-tick alerts.
+varip array<float> alertStateCenters = array.new<float>()
+varip array<bool> approachSent = array.new<bool>()
+varip array<bool> reachedSent = array.new<bool>()
+varip array<bool> breakSent = array.new<bool>()
+varip array<bool> resistanceApproachSent = array.new<bool>()
+varip array<bool> breakout2xSent = array.new<bool>()
+varip array<bool> breakout4xSent = array.new<bool>()
+varip array<bool> breakout8xSent = array.new<bool>()
+
+f_stateIndex(float center) =>
+    int result = -1
+    int stateCount = array.size(alertStateCenters)
+    if stateCount > 0
+        for index = 0 to stateCount - 1
+            if math.abs(array.get(alertStateCenters, index) - center) <= syminfo.mintick
+                result := index
+                break
+    if result == -1
+        array.push(alertStateCenters, center)
+        array.push(approachSent, false)
+        array.push(reachedSent, false)
+        array.push(breakSent, false)
+        array.push(resistanceApproachSent, false)
+        array.push(breakout2xSent, false)
+        array.push(breakout4xSent, false)
+        array.push(breakout8xSent, false)
+        result := array.size(alertStateCenters) - 1
+    result
+
+bool approachEvent = false
+bool reachedEvent = false
+bool breakEvent = false
+bool resistanceApproachEvent = false
+bool resistanceBreakoutEvent = false
+bool mrApproachEvent = false
+bool mrBreakoutEvent = false
+bool mrRetestEvent = false
+
+if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
+    int liveZoneCount = math.min(displayedZones, array.size(supportZones))
+    float rearmDistance = rearmDistanceAtr * confirmedDailyAtr
+
+    if liveZoneCount > 0
+        for zoneIndex = 0 to liveZoneCount - 1
+            Zone zone = array.get(supportZones, zoneIndex)
+            float support = f_alertLow(zone)
+            float approachBoundary = f_alertHigh(zone, confirmedDailyAtrPercent)
+            float breakBoundary = support - rearmDistance
+            int stateIndex = f_stateIndex(support)
+
+            bool crossedApproachDown =
+                 not na(previousLivePrice) and
+                 previousLivePrice > approachBoundary and
+                 close <= approachBoundary and close > support
+            bool crossedSupportDown =
+                 not na(previousLivePrice) and
+                 previousLivePrice > support and close <= support
+            bool crossedBreakDown =
+                 not na(previousLivePrice) and
+                 previousLivePrice > breakBoundary and close <= breakBoundary
+
+            // A meaningful recovery above the approach band rearms every stage.
+            if close > approachBoundary + rearmDistance
+                array.set(approachSent, stateIndex, false)
+                array.set(reachedSent, stateIndex, false)
+                array.set(breakSent, stateIndex, false)
+
+            bool shouldReach =
+                 enableReachedAlerts and crossedSupportDown and
+                 not array.get(reachedSent, stateIndex)
+            bool shouldApproach =
+                 enableApproachAlerts and crossedApproachDown and
+                 not array.get(approachSent, stateIndex) and not shouldReach
+            bool shouldBreak =
+                 enableBreakAlerts and crossedBreakDown and
+                 not array.get(breakSent, stateIndex)
+
+            if shouldApproach
+                approachEvent := true
+                array.set(approachSent, stateIndex, true)
+                string approachMessage =
+                     syminfo.tickerid + " approaching M" + str.tostring(zoneIndex + 1) + " Monthly support" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nSupport: " + str.tostring(support, format.mintick) +
+                     "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(approachMessage, alert.freq_all)
+
+            if shouldReach
+                reachedEvent := true
+                array.set(approachSent, stateIndex, true)
+                array.set(reachedSent, stateIndex, true)
+                string reachedMessage =
+                     syminfo.tickerid + " reached M" + str.tostring(zoneIndex + 1) + " Monthly support" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nSupport: " + str.tostring(support, format.mintick) +
+                     "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(reachedMessage, alert.freq_all)
+
+            if shouldBreak
+                breakEvent := true
+                array.set(breakSent, stateIndex, true)
+                string breakMessage =
+                     syminfo.tickerid + " broke below M" + str.tostring(zoneIndex + 1) + " Monthly support" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nSupport: " + str.tostring(support, format.mintick) +
+                     "\nBreak boundary: " + str.tostring(breakBoundary, format.mintick) +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(breakMessage, alert.freq_all)
+
+    int liveResistanceCount = math.min(displayedResistanceZones, array.size(resistanceZones))
+    float volumeMultiple =
+         not na(prior20DayAverageExtendedVolume) and prior20DayAverageExtendedVolume > 0.0 ?
+         currentExtendedDailyVolume / prior20DayAverageExtendedVolume : na
+
+    if liveResistanceCount > 0
+        for zoneIndex = 0 to liveResistanceCount - 1
+            Zone zone = array.get(resistanceZones, zoneIndex)
+            float resistance = zone.center
+            float approachBoundary = f_resistanceLow(zone, confirmedDailyAtrPercent)
+            float convictionBoundary = resistance + breakoutConvictionAtr * confirmedDailyAtr
+            float rearmBoundary = approachBoundary - rearmDistance
+            int stateIndex = f_stateIndex(resistance)
+            bool crossedApproachUp =
+                 not na(previousLivePrice) and
+                 previousLivePrice < approachBoundary and
+                 close >= approachBoundary
+
+            if crossedApproachUp
+                f_latchResistance(resistance)
+
+            // A meaningful retreat below the lower edge starts a fresh cycle.
+            if close < rearmBoundary
+                array.set(resistanceApproachSent, stateIndex, false)
+                array.set(breakout2xSent, stateIndex, false)
+                array.set(breakout4xSent, stateIndex, false)
+                array.set(breakout8xSent, stateIndex, false)
+                f_unlatchResistance(resistance)
+
+            bool shouldApproachResistance =
+                 enableResistanceApproachAlerts and crossedApproachUp and
+                 not array.get(resistanceApproachSent, stateIndex)
+
+            if shouldApproachResistance
+                resistanceApproachEvent := true
+                array.set(resistanceApproachSent, stateIndex, true)
+                string resistanceMessage =
+                     syminfo.tickerid + " approaching R" + str.tostring(zoneIndex + 1) + " Monthly resistance" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(resistanceMessage, alert.freq_all)
+
+            bool priceHasConviction = close >= convictionBoundary
+            bool eligibleBreakout =
+                 enableResistanceBreakoutAlerts and
+                 f_isLatchedResistance(resistance) and priceHasConviction and not na(volumeMultiple)
+
+            bool shouldAlert2x = eligibleBreakout and volumeMultiple >= 2.0 and not array.get(breakout2xSent, stateIndex)
+            bool shouldAlert4x = eligibleBreakout and volumeMultiple >= 4.0 and not array.get(breakout4xSent, stateIndex)
+            bool shouldAlert8x = eligibleBreakout and volumeMultiple >= 8.0 and not array.get(breakout8xSent, stateIndex)
+
+            if shouldAlert2x or shouldAlert4x or shouldAlert8x
+                resistanceBreakoutEvent := true
+
+            if shouldAlert2x
+                array.set(breakout2xSent, stateIndex, true)
+                string breakoutMessage2x =
+                     syminfo.tickerid + " breakout R" + str.tostring(zoneIndex + 1) + " Monthly resistance with 2x average Daily volume" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
+                     "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(breakoutMessage2x, alert.freq_all)
+
+            if shouldAlert4x
+                array.set(breakout4xSent, stateIndex, true)
+                string breakoutMessage4x =
+                     syminfo.tickerid + " breakout R" + str.tostring(zoneIndex + 1) + " Monthly resistance with 4x average Daily volume" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
+                     "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(breakoutMessage4x, alert.freq_all)
+
+            if shouldAlert8x
+                array.set(breakout8xSent, stateIndex, true)
+                string breakoutMessage8x =
+                     syminfo.tickerid + " breakout R" + str.tostring(zoneIndex + 1) + " Monthly resistance with 8x average Daily volume" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
+                     "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
+                     "\nStrength: " + f_strengthLabel(zone)
+                alert(breakoutMessage8x, alert.freq_all)
+
+    // Monthly-high resistance owns its consolidated component lifecycle.
+    int visibleMrCount = math.min(displayedMonthlyHighZones, array.size(monthlyHighResistanceZones))
+    if visibleMrCount > 0
+        for rankIndex = 0 to visibleMrCount - 1
+            Zone rankedZone = array.get(monthlyHighResistanceZones, rankIndex)
+            int rankedState = f_mrStateIndex(rankedZone.center)
+            array.set(mrOriginalRank, rankedState, rankIndex + 1)
+
+    if array.size(detectedMonthlyHighZones) > 0
+        for mrZone in detectedMonthlyHighZones
+            int stateIndex = f_mrStateIndex(mrZone.center)
+            float resistance = mrZone.center
+            float approachBoundary = f_resistanceLow(mrZone, confirmedDailyAtrPercent)
+            float convictionBoundary = resistance + breakoutConvictionAtr * confirmedDailyAtr
+            float rearmBoundary = approachBoundary - rearmDistance
+            float retestBoundary = f_alertHigh(mrZone, confirmedDailyAtrPercent)
+            float invalidationBoundary = resistance - rearmDistance
+
+            bool isVisibleMr = false
+            int visibleCandidateCount = array.size(monthlyHighResistanceZones)
+            if visibleCandidateCount > 0
+                for visibleIndex = 0 to visibleCandidateCount - 1
+                    Zone visibleCandidate = array.get(monthlyHighResistanceZones, visibleIndex)
+                    if math.abs(visibleCandidate.center - resistance) <= syminfo.mintick
+                        isVisibleMr := true
+                        break
+            bool wasAbovePrevious =
+                 isVisibleMr and not na(previousLivePrice) and resistance > previousLivePrice
+            bool crossedApproachUp =
+                 wasAbovePrevious and previousLivePrice < approachBoundary and close >= approachBoundary
+            if crossedApproachUp
+                array.set(mrLatched, stateIndex, true)
+
+            if array.get(mrLatched, stateIndex) and
+                 not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
+                array.set(mrLatched, stateIndex, false)
+                array.set(mrApproachSent, stateIndex, false)
+                array.set(mrBreakoutSent, stateIndex, false)
+
+            int storedRank = array.get(mrOriginalRank, stateIndex)
+            int mrRank = storedRank > 0 ? storedRank : 1
+            string structureName = "MR" + str.tostring(mrRank)
+
+            bool shouldApproach =
+                 enableResistanceApproachAlerts and crossedApproachUp and
+                 not array.get(mrApproachSent, stateIndex)
+            if shouldApproach
+                mrApproachEvent := true
+                array.set(mrApproachSent, stateIndex, true)
+                alert(
+                     syminfo.tickerid + " approaching " + structureName + " Monthly resistance" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
+                     "\nStrength: " + f_strengthLabel(mrZone),
+                     alert.freq_all)
+
+            bool breakoutQualified =
+                 enableResistanceBreakoutAlerts and array.get(mrLatched, stateIndex) and
+                 not array.get(mrBreakoutSent, stateIndex) and
+                 close >= convictionBoundary and not na(volumeMultiple) and volumeMultiple >= 2.0
+            if breakoutQualified
+                mrBreakoutEvent := true
+                array.set(mrBreakoutSent, stateIndex, true)
+                array.set(mrRetestActive, stateIndex, true)
+                array.set(mrRetestSent, stateIndex, false)
+                array.set(mrBreakoutVolume, stateIndex, volumeMultiple)
+                alert(
+                     syminfo.tickerid + " breakout " + structureName + " Monthly resistance" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nResistance: " + str.tostring(resistance, format.mintick) +
+                     "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
+                     "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
+                     "\nStrength: " + f_strengthLabel(mrZone),
+                     alert.freq_all)
+
+            bool retestIsActive = array.get(mrRetestActive, stateIndex)
+            bool crossedRetestDown =
+                 retestIsActive and not na(previousLivePrice) and
+                 previousLivePrice > retestBoundary and
+                 close <= retestBoundary and close >= resistance
+            if enableResistanceApproachAlerts and crossedRetestDown and
+                 not array.get(mrRetestSent, stateIndex)
+                mrRetestEvent := true
+                array.set(mrRetestSent, stateIndex, true)
+                alert(
+                     syminfo.tickerid + " approaching " + structureName + " retest support" +
+                     "\nLive price: " + str.tostring(close, format.mintick) +
+                     "\nRetest support: " + str.tostring(resistance, format.mintick) +
+                     "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
+                     "\nBreakout volume: " + str.tostring(array.get(mrBreakoutVolume, stateIndex), "#.##") + "x" +
+                     "\nStrength: " + f_strengthLabel(mrZone),
+                     alert.freq_all)
+
+            if retestIsActive and close < invalidationBoundary
+                array.set(mrRetestActive, stateIndex, false)
+                array.set(mrLatched, stateIndex, false)
+                array.set(mrApproachSent, stateIndex, false)
+                array.set(mrBreakoutSent, stateIndex, false)
+                array.set(mrRetestSent, stateIndex, false)
+                array.set(mrBreakoutVolume, stateIndex, na)
+
+    previousLivePrice := close
+
+alertcondition(approachEvent, "Approaching Monthly support", "{{exchange}}:{{ticker}} is approaching Monthly support at {{close}}")
+alertcondition(reachedEvent, "Reached Monthly support", "{{exchange}}:{{ticker}} reached Monthly support at {{close}}")
+alertcondition(breakEvent, "Broke below Monthly support", "{{exchange}}:{{ticker}} broke below Monthly support at {{close}}")
+alertcondition(resistanceApproachEvent, "Approaching Monthly resistance", "{{exchange}}:{{ticker}} is approaching Monthly resistance at {{close}}")
+alertcondition(resistanceBreakoutEvent, "Volume-confirmed Monthly resistance breakout", "{{exchange}}:{{ticker}} broke Monthly resistance at {{close}}")
+alertcondition(mrApproachEvent, "Approaching Monthly-high resistance", "{{exchange}}:{{ticker}} is approaching Monthly-high resistance at {{close}}")
+alertcondition(mrBreakoutEvent, "Monthly-high resistance breakout", "{{exchange}}:{{ticker}} broke Monthly-high resistance at {{close}}")
+alertcondition(mrRetestEvent, "Approaching resistance retest support", "{{exchange}}:{{ticker}} is approaching resistance retest support at {{close}}")
