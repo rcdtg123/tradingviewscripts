@@ -3,8 +3,8 @@
 ## Scope
 
 The unified indicator detects Monthly-low support, former-support resistance,
-Monthly-high resistance, volume-confirmed breakout, and retest support. Weekly
-detection will reuse the same modules after Monthly behavior is validated.
+Monthly-high resistance, volume-confirmed breakout, and retest support. Its
+scope is exclusively Monthly market structure.
 
 ## Monthly-high resistance and cross-family priority
 
@@ -23,7 +23,7 @@ detection will reuse the same modules after Monthly behavior is validated.
 ## Data
 
 - Use only completed higher-timeframe candle lows.
-- Never qualify a zone using a developing Monthly or Weekly candle.
+- Never qualify a zone using a developing Monthly candle.
 - Analyze the latest 120 completed Monthly observations by default.
 - Use TradingView's supplied, normally adjusted symbol data.
 
@@ -78,20 +78,19 @@ detection will reuse the same modules after Monthly behavior is validated.
   for the visible resistance shortlist only when its cluster contains at least
   four qualifying completed Monthly lows by default.
 - Declutter nearby display candidates independently of historical clustering.
-  Repeatedly select the closest adjacent pair within 10% by default. For support,
-  discard the higher member and retain the lower destination; for resistance,
-  discard the lower member and retain the higher destination.
-- Decluttering never uses proximity alone to select its survivor. Monthly touch
-  count is primary, followed by temporal spread and narrower cluster width.
-  Consequently, a strong support around 50,xxx can displace a weaker but nearer
-  55,xxx support and become M1 after the surviving list is renumbered.
-- Resolve the closest pair first. This prevents a middle level from joining the
-  wrong neighbor; for example, ADBE retains support near 233 while consolidating
-  the closer 218/206 pair into the 206 destination.
+  Adjacent candidates within 10% form a connected crowding neighborhood.
+- For each support neighborhood, always preserve the highest center as the
+  nearest actionable support for approach/reached alerts. If a lower member has
+  greater conviction than that nearest member, also preserve the strongest
+  lower member as a separate high-conviction support. Suppress all other members.
+- Monthly touch count is the primary conviction measure, followed by temporal
+  spread and narrower cluster width. Thus a weaker nearby support is no longer
+  allowed to hide the immediate actionable level, while a stronger lower level
+  remains visible rather than being discarded.
 - Apply grouping to the complete qualifying candidate list before taking the
   visible shortlist, so lower distinct regions are not accidentally omitted.
 - Display the five nearest surviving support/current regions by default.
-- For nearby resistance regions, apply the directional mirror rule: retain
+- For nearby resistance regions, continue to apply the directional mirror rule: retain
   the highest resistance and discard lower members. Thus an overlapping
   `MR1 262.27` / `MR2 277.61` pair is represented by the 277.61 region.
 - Perform support and resistance consolidation before visible-zone numbering and
@@ -115,6 +114,9 @@ detection will reuse the same modules after Monthly behavior is validated.
   candles clear of text.
 - Label visible zones by price proximity: `M1 <center>`, `M2 <center>`, and so
   on. M1 is the nearest Monthly support.
+- Add `HC` to the compact label of a retained lower support whose conviction
+  exceeds the nearest member of its crowding neighborhood, and include
+  `Role: High-conviction support` in its dynamic alerts.
 - Do not display a diagnostics table or verbose zone statistics on the chart.
 
 ## Alerts
@@ -143,8 +145,6 @@ detection will reuse the same modules after Monthly behavior is validated.
   a newly observed downward crossing from above.
 - Every dynamic alert message includes Monthly confirmation strength using the
   notation `2xM`, `3xM`, `6xM`, and so on.
-- When Monthly and Weekly conditions occur for the same symbol and bar, emit
-  only the Monthly alert.
 
 ## Resistance and breakout alerts
 
@@ -177,4 +177,3 @@ useful parts of SOLID:
   separate responsibilities.
 - Detection code has no drawing or alert side effects.
 - Rendering and alert arbitration consume detector output.
-- Weekly support can reuse the detector without changing its internals.

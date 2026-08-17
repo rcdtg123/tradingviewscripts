@@ -47,7 +47,6 @@ accepting these dates or prices as exact.
 9. Rising into a band from below: no alert.
 10. Alert starts while already inside a band or below support: no startup alert;
     wait for a future observed downward crossing from above.
-11. Monthly and Weekly entries on the same symbol/bar: Monthly only.
 
 ## Display-priority cases
 
@@ -57,23 +56,29 @@ accepting these dates or prices as exact.
    support from the visible shortlist.
 3. For equal-distance zones, prefer greater temporal spread, then more touches,
    then the narrower zone.
-4. Repeatedly resolve the closest adjacent pair inside the 10% crowding limit;
-   discard the higher support and retain the lower destination.
-5. Supports 99.430, 98.805, 97.691, 96.912, and 96.366 whose approach bands form
-   one chain produce one representative near 96.366.
+4. Inside each connected 10% support neighborhood, retain the highest center as
+   the nearest actionable support. Also retain the strongest lower member only
+   when its conviction exceeds that nearest support.
+5. Supports 99.430, 98.805, 97.691, 96.912, and 96.366 whose centers form one
+   crowding chain retain 99.430 as the actionable level plus at most one stronger
+   lower high-conviction member.
 6. If the next non-overlapping support is near 89, the visible result begins
    `M1 96.xx`, `M2 89.xx`.
 7. Group the complete candidate list before selecting five visible/alertable
    supports.
-8. For support near 96.366 and 88.346 inside the same crowding region, retain the
-   one with greater Monthly touch count. Use temporal spread, width, then the
-   lower destination only when earlier conviction criteria tie.
+8. For support near 96.366 and 88.346 inside the same crowding region, retain
+   96.366 as the nearest actionable level. If 88.346 has greater Monthly touch
+   count (then temporal spread/width), also retain and mark it `HC`.
 9. For ADBE, support bands centered near 218.74 and 205.99 overlap and span about
-   5.83%; retain only the lower 205.99 destination as visible/alertable support.
+   5.83%; retain 218.74 as actionable and retain 205.99 as `HC` only if it has
+   greater conviction.
 10. For BANKNIFTY near 57,500, repeated Monthly lows around 49,800–50,600 form
-    a high-conviction support. If it has more qualifying Monthly lows than the
-    nearby 55,xxx region, retain the approximately 50,xxx region and renumber it
-    M1; a weaker neighbor cannot remove it through decluttering.
+    a high-conviction support. Preserve the nearer 55,xxx region as M1 for
+    approach/reached alerts and also retain the approximately 50,xxx region as
+    a lower `HC` support when its conviction is greater.
+11. For META after price moves below the 553.xx support, preserve the nearer
+    522.xx two-touch zone as M1. Also retain the stronger lower 477.xx zone as a
+    separate `HC` support; both must draw and alert from the same boundaries.
 
 ## Resistance and volume-breakout cases
 

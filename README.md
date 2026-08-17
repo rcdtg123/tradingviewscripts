@@ -5,9 +5,8 @@ monitoring structural price zones derived from completed Monthly candles.
 
 The indicator combines Monthly-low support, former support acting as
 resistance, Monthly-high resistance, volume-confirmed resistance breakouts,
-and post-breakout retest support. Weekly support is intentionally outside the
-project scope because the Monthly levels currently provide the required signal
-quality.
+and post-breakout retest support. The project focuses exclusively on Monthly
+structure because those levels currently provide the required signal quality.
 
 ## Main script
 
@@ -84,18 +83,22 @@ Nearby structural levels can otherwise create overlapping boxes and redundant
 alerts. The indicator therefore declutters candidates within a 10% neighborhood
 by default before assigning visible level numbers.
 
-Survival is conviction-first:
+Support neighborhoods preserve two complementary roles:
 
-1. Greater Monthly touch count.
-2. Greater temporal spread between qualifying Monthly candles.
-3. Narrower historical cluster.
-4. For equal-conviction cross-family resistance, `MR` takes preference over
-   `R`.
-5. A deterministic directional destination resolves any remaining tie.
+1. The nearest qualifying support is retained as the actionable level for
+   approach and reached alerts.
+2. When a lower support has greater conviction, the strongest such lower level
+   is also retained and marked `HC` for high conviction.
+3. Conviction ranks greater Monthly touch count first, then greater temporal
+   spread, then a narrower historical cluster.
 
-This ensures that a high-conviction zone is not discarded merely because a
-weaker zone is closer to current price. Suppressed zones are neither displayed
-nor alerted, keeping chart output and alert behavior consistent.
+Resistance decluttering remains conviction-first. For equal-conviction
+cross-family resistance, `MR` takes preference over `R`, followed by a
+deterministic directional destination.
+
+This preserves timely alerts at the nearest support without losing an important
+stronger support beneath it. Suppressed zones are neither displayed nor alerted,
+keeping chart output and alert behavior consistent.
 
 ## Alerts
 
@@ -153,6 +156,7 @@ old alert and create it again so the latest logic is used.
 - Orange: Developing Monthly support with two touches.
 - Red: Resistance from either the `R` or `MR` family.
 - Green: Post-breakout Retest support.
+- `HC` suffix: A retained lower support with greater conviction than M1.
 - Labels are placed at the left edge to keep the latest candles uncluttered.
 - No diagnostics table or verbose zone statistics are drawn.
 

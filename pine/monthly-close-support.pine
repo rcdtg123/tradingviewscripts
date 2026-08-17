@@ -12,8 +12,8 @@ indicator(
 // invisible plot acts only as the indicator's stable output declaration.
 plot(na, title = "Internal output", display = display.none)
 
-// Version 1 derives both support and resistance from Monthly lows. The detector
-// is timeframe-agnostic so the Weekly module can reuse it after validation.
+// The unified detector derives support and former-support resistance from
+// completed Monthly lows, plus native resistance from completed Monthly highs.
 
 //──────────────────────────────────────────────────────────────────────────────
 // Domain types
@@ -33,6 +33,7 @@ type Zone
     int firstTouch = na
     int lastTouch = na
     float averageSpreadMonths = 0.0
+    bool highConvictionSupport = false
 
 type ResistanceCandidate
     Zone zone
@@ -330,38 +331,53 @@ f_sortHighestCenterFirst(array<Zone> zones) =>
                 array.set(sorted, highestIndex, temporary)
     sorted
 
-// Decluttering is intentionally separate from historical low/high clustering.
-// Repeatedly resolve the closest adjacent display pair within the configured
-// percentage span. Closest-first avoids a middle level attaching to the wrong
-// neighbor (e.g., preserve 233 while consolidating 218/206 into 206).
+// Support decluttering preserves two different jobs inside each connected
+// crowding neighborhood. The highest center is the nearest actionable support
+// and must remain available for approach/reached alerts. If a lower member has
+// greater Monthly conviction, retain the strongest such member as a separate
+// high-conviction destination. All other crowded members are suppressed.
 f_declutterSupportDestinations(array<Zone> zones) =>
-    array<Zone> distinct = array.copy(zones)
-    bool canConsolidate = true
-    while canConsolidate and array.size(distinct) > 1
-        canConsolidate := false
-        int closestPairIndex = -1
-        float closestDistance = na
-        for index = 0 to array.size(distinct) - 2
-            Zone higher = array.get(distinct, index)
-            Zone lower = array.get(distinct, index + 1)
-            float distance = higher.center != 0.0 ?
+    array<Zone> survivors = array.new<Zone>()
+    int count = array.size(zones)
+    for zone in zones
+        zone.highConvictionSupport := false
+    int componentStart = 0
+    while componentStart < count
+        int componentEnd = componentStart
+        while componentEnd + 1 < count
+            Zone higher = array.get(zones, componentEnd)
+            Zone lower = array.get(zones, componentEnd + 1)
+            float adjacentDistance = higher.center != 0.0 ?
                  (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
-            bool insideCrowdingLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
-            bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
-            if insideCrowdingLimit and closerThanCurrent
-                closestDistance := distance
-                closestPairIndex := index
-                canConsolidate := true
-        if canConsolidate
-            Zone higher = array.get(distinct, closestPairIndex)
-            Zone lower = array.get(distinct, closestPairIndex + 1)
-            bool higherWins = f_zoneHasHigherConviction(higher, lower)
-            bool lowerWins = f_zoneHasHigherConviction(lower, higher)
-            // Equal-conviction support retains the lower destination.
-            int removeIndex = higherWins and not lowerWins ?
-                 closestPairIndex + 1 : closestPairIndex
-            array.remove(distinct, removeIndex)
-    distinct
+            if not na(adjacentDistance) and adjacentDistance <= maximumOverlapGroupSpanPercent
+                componentEnd += 1
+            else
+                break
+
+        Zone nearest = array.get(zones, componentStart)
+        array.push(survivors, nearest)
+
+        if componentEnd > componentStart
+            int strongestLowerIndex = componentStart + 1
+            if componentEnd > componentStart + 1
+                for index = componentStart + 2 to componentEnd
+                    Zone candidate = array.get(zones, index)
+                    Zone incumbent = array.get(zones, strongestLowerIndex)
+                    if f_zoneHasHigherConviction(candidate, incumbent)
+                        strongestLowerIndex := index
+            Zone strongestLower = array.get(zones, strongestLowerIndex)
+            if f_zoneHasHigherConviction(strongestLower, nearest)
+                strongestLower.highConvictionSupport := true
+                array.push(survivors, strongestLower)
+
+        componentStart := componentEnd + 1
+    survivors
+
+// A lower support is explicitly marked high-conviction when it outranks the
+// nearest actionable support. The marker is shared by drawing and alert text.
+f_isHighConvictionSupport(array<Zone> zones, int index) =>
+    index >= 0 and index < array.size(zones) and
+         array.get(zones, index).highConvictionSupport
 
 f_declutterResistanceDestinations(array<Zone> zones) =>
     array<Zone> distinct = array.copy(zones)
@@ -685,7 +701,9 @@ if barstate.islast
                  extend = extend.right,
                  color = zoneColor,
                  style = line.style_dashed)
-            string labelText = "M" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick)
+            bool isHighConviction = f_isHighConvictionSupport(supportZones, index)
+            string roleText = isHighConviction ? " HC" : ""
+            string labelText = "M" + str.tostring(index + 1) + roleText + " " + str.tostring(zone.center, format.mintick)
             label zoneLabel = label.new(
                  x = chart.left_visible_bar_time,
                  y = zone.center,
@@ -831,6 +849,8 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
     if liveZoneCount > 0
         for zoneIndex = 0 to liveZoneCount - 1
             Zone zone = array.get(supportZones, zoneIndex)
+            bool isHighConviction = f_isHighConvictionSupport(supportZones, zoneIndex)
+            string supportRole = isHighConviction ? "\nRole: High-conviction support" : "\nRole: Actionable support"
             float support = f_alertLow(zone)
             float approachBoundary = f_alertHigh(zone, confirmedDailyAtrPercent)
             float breakBoundary = support - rearmDistance
@@ -871,7 +891,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + supportRole
                 alert(approachMessage, alert.freq_all)
 
             if shouldReach
@@ -883,7 +903,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + supportRole
                 alert(reachedMessage, alert.freq_all)
 
             if shouldBreak
@@ -894,7 +914,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nBreak boundary: " + str.tostring(breakBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + supportRole
                 alert(breakMessage, alert.freq_all)
 
     int liveResistanceCount = math.min(displayedResistanceZones, array.size(resistanceZones))

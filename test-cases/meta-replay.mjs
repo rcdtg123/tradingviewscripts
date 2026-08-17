@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import assert from "node:assert/strict";
 
 const monthlyPath = "/Users/dhavader/Downloads/BATS_META, 1M.csv";
 const dailyPath = "/Users/dhavader/Downloads/BATS_META, 1D.csv";
@@ -110,6 +111,37 @@ function stronger(candidate, incumbent) {
 }
 
 function declutter(zones, support, limit = 10) {
+  if (support) {
+    const survivors = [];
+    for (const zone of zones) zone.highConvictionSupport = false;
+    let componentStart = 0;
+    while (componentStart < zones.length) {
+      let componentEnd = componentStart;
+      while (componentEnd + 1 < zones.length) {
+        const higher = zones[componentEnd];
+        const lower = zones[componentEnd + 1];
+        const distance = (higher.center - lower.center) / Math.abs(higher.center) * 100;
+        if (distance <= limit) componentEnd++;
+        else break;
+      }
+
+      const nearest = zones[componentStart];
+      survivors.push(nearest);
+      if (componentEnd > componentStart) {
+        let strongestLower = zones[componentStart + 1];
+        for (let index = componentStart + 2; index <= componentEnd; index++) {
+          if (stronger(zones[index], strongestLower)) strongestLower = zones[index];
+        }
+        if (stronger(strongestLower, nearest)) {
+          strongestLower.highConvictionSupport = true;
+          survivors.push(strongestLower);
+        }
+      }
+      componentStart = componentEnd + 1;
+    }
+    return survivors;
+  }
+
   const distinct = [...zones];
   let can = true;
   while (can && distinct.length > 1) {
@@ -214,6 +246,9 @@ function describe(zones, prefix) {
     label: `${prefix}${index + 1}`,
     center: Number(zone.center.toFixed(4)),
     touches: zone.touches,
+    role: prefix === "M" && zone.highConvictionSupport
+      ? "high-conviction"
+      : prefix === "M" ? "actionable" : undefined,
     approachLow: prefix === "M" ? Number(zone.center.toFixed(4)) : Number((zone.center * (1 - approachPercent / 100)).toFixed(4)),
     approachHigh: prefix === "M" ? Number((zone.center * (1 + approachPercent / 100)).toFixed(4)) : Number(zone.center.toFixed(4)),
   }));
@@ -254,6 +289,12 @@ for (const price of prices) {
   });
   previous = price;
 }
+
+assert.equal(replay[2].supports[0].center, 522.375);
+assert.equal(replay[2].supports[0].role, "actionable");
+assert.equal(replay[2].supports[1].center, 477.9);
+assert.equal(replay[2].supports[1].role, "high-conviction");
+assert.deepEqual(replay[2].alerts, ["Reached M1 522.38 (2xM)"]);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,
