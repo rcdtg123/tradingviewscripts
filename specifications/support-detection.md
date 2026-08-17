@@ -11,8 +11,9 @@ scope is exclusively Monthly market structure.
 - Cluster completed Monthly highs using the same volatility-normalized detector.
 - Require two Monthly highs by default and display the nearest five strictly
   above live price as `MR1` through `MR5`.
-- When R and MR candidates share a connected 10% neighborhood, retain the
-  highest-conviction member. MR preference applies only when conviction ties.
+- When an R and MR candidate overlap within 10%, retain the higher-conviction
+  member. MR preference applies only when conviction ties; same-family
+  survivors are not compared again during this cross-family step.
 - A Monthly-high breakout requires price at `MR + 0.25 * Daily ATR` and at least
   2x current extended-session Daily volume versus the previous 20-Day average.
   Send one notification and report the actual multiple.
@@ -91,15 +92,17 @@ scope is exclusively Monthly market structure.
 - Apply grouping to the complete qualifying candidate list before taking the
   visible shortlist, so lower distinct regions are not accidentally omitted.
 - Display the five nearest surviving support/current regions by default.
-- For nearby resistance regions, continue to apply the directional mirror rule: retain
-  the highest resistance and discard lower members. Thus an overlapping
-  `MR1 262.27` / `MR2 277.61` pair is represented by the 277.61 region.
+- Resolve adjacent resistance pairs from lowest to highest without transitive
+  chaining. Always preserve the lower center as the nearest actionable
+  resistance. If its paired higher member has greater conviction, preserve that
+  member too and mark it as high-conviction resistance; otherwise suppress only
+  that paired higher member.
 - Perform support and resistance consolidation before visible-zone numbering and
   alert selection. Suppressed members neither draw nor alert.
-- After same-family decluttering, combine `R` and `MR` candidates into connected
-  10% price neighborhoods. Retain the greatest Monthly touch count; then prefer
-  greater temporal spread, narrower cluster width, MR type, and finally the
-  higher resistance destination. This applies before display and alerts.
+- After same-family decluttering, arbitrate only overlapping cross-family `R`/`MR`
+  pairs within 10%. Never compare two same-family survivors again. Retain the
+  greater Monthly touch count, then greater temporal spread and narrower
+  cluster width; prefer MR only when conviction ties.
 - Display the three nearest resistance regions by default. Resistance approach
   bands mirror support bands: they extend downward from the median Monthly low
   using the same volatility-adaptive width.
@@ -118,6 +121,9 @@ scope is exclusively Monthly market structure.
 - Add `HC` to the compact label of a retained lower support whose conviction
   exceeds the higher member of its crowded pair, and include
   `Role: High-conviction support` in its dynamic alerts.
+- Add `HC` to a retained higher resistance whose conviction exceeds the lower
+  member of its crowded pair, and include `Role: High-conviction resistance` in
+  its dynamic alerts.
 - Do not display a diagnostics table or verbose zone statistics on the chart.
 
 ## Alerts

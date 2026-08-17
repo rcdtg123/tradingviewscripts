@@ -137,32 +137,25 @@ function declutter(zones, support, limit = 10) {
     return survivors;
   }
 
-  const distinct = [...zones];
-  let can = true;
-  while (can && distinct.length > 1) {
-    can = false;
-    let pair = -1;
-    let closest = Infinity;
-    for (let index = 0; index < distinct.length - 1; index++) {
-      const first = distinct[index];
-      const second = distinct[index + 1];
-      const distance = support
-        ? (first.center - second.center) / Math.abs(first.center) * 100
-        : (second.center - first.center) / Math.abs(first.center) * 100;
-      if (distance <= limit && distance < closest) {
-        closest = distance;
-        pair = index;
-        can = true;
-      }
-    }
-    if (can) {
-      const firstWins = stronger(distinct[pair], distinct[pair + 1]);
-      const secondWins = stronger(distinct[pair + 1], distinct[pair]);
-      const remove = firstWins && !secondWins ? pair + 1 : pair;
-      distinct.splice(remove, 1);
-    }
+  const survivors = [];
+  for (const zone of zones) zone.highConvictionResistance = false;
+  let index = 0;
+  while (index < zones.length) {
+    const lower = zones[index];
+    survivors.push(lower);
+    if (index + 1 < zones.length) {
+      const higher = zones[index + 1];
+      const distance = (higher.center - lower.center) / Math.abs(lower.center) * 100;
+      if (distance <= limit) {
+        if (stronger(higher, lower)) {
+          higher.highConvictionResistance = true;
+          survivors.push(higher);
+        }
+        index += 2;
+      } else index += 1;
+    } else index += 1;
   }
-  return distinct;
+  return survivors;
 }
 
 const daily = readCsv(dailyPath);
@@ -205,34 +198,38 @@ function arbitrateResistance(oldResistance, monthlyResistance, limit = 10) {
     ...oldResistance.map((zone) => ({ zone, isMR: false })),
     ...monthlyResistance.map((zone) => ({ zone, isMR: true })),
   ].sort((a, b) => a.zone.center - b.zone.center);
-  const survivors = [];
-  let start = 0;
-  while (start < combined.length) {
-    let end = start;
-    while (end + 1 < combined.length) {
-      const distance = (combined[end + 1].zone.center - combined[end].zone.center) /
-        Math.abs(combined[end].zone.center) * 100;
-      if (distance <= limit) end++;
-      else break;
-    }
-    let winner = combined[start];
-    for (let index = start + 1; index <= end; index++) {
-      const candidate = combined[index];
-      const candidateStronger = stronger(candidate.zone, winner.zone);
-      const winnerStronger = stronger(winner.zone, candidate.zone);
-      const equal = !candidateStronger && !winnerStronger;
-      if (candidateStronger ||
-          (equal && candidate.isMR && !winner.isMR) ||
-          (equal && candidate.isMR === winner.isMR && candidate.zone.center > winner.zone.center)) {
-        winner = candidate;
+  let can = true;
+  while (can && combined.length > 1) {
+    can = false;
+    let pair = -1;
+    let closest = Infinity;
+    let higherPair = -1;
+    for (let lowerIndex = 0; lowerIndex < combined.length - 1; lowerIndex++) {
+      for (let higherIndex = lowerIndex + 1; higherIndex < combined.length; higherIndex++) {
+        const lower = combined[lowerIndex];
+        const higher = combined[higherIndex];
+        const distance = (higher.zone.center - lower.zone.center) / Math.abs(lower.zone.center) * 100;
+        if (lower.isMR !== higher.isMR && distance <= limit && distance < closest) {
+          pair = lowerIndex;
+          higherPair = higherIndex;
+          closest = distance;
+          can = true;
+        }
       }
     }
-    survivors.push(winner);
-    start = end + 1;
+    if (can) {
+      const lower = combined[pair];
+      const higher = combined[higherPair];
+      const higherStronger = stronger(higher.zone, lower.zone);
+      const lowerStronger = stronger(lower.zone, higher.zone);
+      const equal = !higherStronger && !lowerStronger;
+      const higherWins = higherStronger || (equal && higher.isMR && !lower.isMR);
+      combined.splice(higherWins ? pair : higherPair, 1);
+    }
   }
   return {
-    oldResistance: survivors.filter((item) => !item.isMR).map((item) => item.zone),
-    monthlyResistance: survivors.filter((item) => item.isMR).map((item) => item.zone),
+    oldResistance: combined.filter((item) => !item.isMR).map((item) => item.zone),
+    monthlyResistance: combined.filter((item) => item.isMR).map((item) => item.zone),
   };
 }
 
@@ -243,7 +240,8 @@ function describe(zones, prefix) {
     touches: zone.touches,
     role: prefix === "M" && zone.highConvictionSupport
       ? "high-conviction"
-      : prefix === "M" ? "actionable" : undefined,
+      : prefix === "M" ? "actionable"
+      : zone.highConvictionResistance ? "high-conviction" : "actionable",
     approachLow: prefix === "M" ? Number(zone.center.toFixed(4)) : Number((zone.center * (1 - approachPercent / 100)).toFixed(4)),
     approachHigh: prefix === "M" ? Number((zone.center * (1 + approachPercent / 100)).toFixed(4)) : Number(zone.center.toFixed(4)),
   }));
@@ -292,6 +290,20 @@ assert.equal(replay[2].supports[1].role, "high-conviction");
 assert.deepEqual(replay[2].alerts, ["Reached M1 522.38 (2xM)"]);
 assert.equal(replay[0].supports[0].center, 553.3);
 assert.equal(replay[0].supports[1].center, 477.9);
+
+const snpsRawMonthlyHighResistance = [
+  { center: 464.46, touches: 11, spread: 17.7455, low: 447.71, high: 471.94 },
+  { center: 505.69, touches: 8, spread: 12.2857, low: 484.6, high: 525.49 },
+  { center: 548.12, touches: 6, spread: 12.4, low: 535.2, high: 556.31 },
+  { center: 585.665, touches: 7, spread: 6.1905, low: 564.78, high: 605.45 },
+  { center: 624.8015, touches: 7, spread: 9.9048, low: 615.7925, high: 651.73 },
+];
+const snpsResistanceSurvivors = declutter(snpsRawMonthlyHighResistance, false);
+assert.deepEqual(
+  snpsResistanceSurvivors.map((zone) => Number(zone.center.toFixed(4))),
+  [464.46, 548.12, 585.665, 624.8015],
+);
+assert.equal(snpsResistanceSurvivors[2].highConvictionResistance, true);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,

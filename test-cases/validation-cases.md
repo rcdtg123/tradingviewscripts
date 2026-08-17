@@ -116,8 +116,9 @@ accepting these dates or prices as exact.
    center at their median; a developing Monthly high never participates.
 2. Display the nearest five MR centers strictly above live price. Never display
    an MR center below price, including while it remains latched internally.
-3. When an MR shares a connected 10% neighborhood with former-support R zones,
-   display only the highest-conviction member. Prefer MR only on a strength tie.
+3. After same-family pairwise decluttering, compare only overlapping cross-family
+   R/MR candidates within 10%. Display the higher-conviction member and prefer
+   MR only on an exact strength tie.
 4. Rising entry into the surviving MR emits one approach alert; suppressed R
    mechanisms emit no duplicates.
 5. At `MR + 0.25 * Daily ATR` and actual extended-session volume of 5.00x,
@@ -128,15 +129,18 @@ accepting these dates or prices as exact.
    mechanisms can classify the region again on later updates.
 8. A hidden MR outside the nearest-five shortlist cannot begin an approach or
    breakout lifecycle.
-9. For ADBE, overlapping MR centers near 262.27 and 277.61 span about 5.85%;
-   retain only the higher 277.61 destination. If old R1 is in the same 10%
-   neighborhood, suppress R1 and display/alert only `MR1 277.61`.
-10. For COIN, MR1 187.39, R2 202.59, MR2 216.77, and R3 231.17 form a connected
-    10% cross-family neighborhood. Retain the member with greatest Monthly
-    touch count. Only if conviction ties should MR beat R and the higher MR beat
-    the lower MR.
+9. For ADBE, overlapping MR centers near 262.27 and 277.61 retain the lower
+   actionable resistance. Retain and mark 277.61 `HC` only when its conviction
+   exceeds 262.27.
+10. For COIN, do not collapse a chain of same-family resistance candidates
+    through an intervening candidate. Resolve same-family candidates as
+    non-transitive pairs, then arbitrate only actual R/MR overlaps.
 11. Every support, resistance, breakout, and retest alert includes strength in
     `NxM` notation matching the survivor's qualifying Monthly candle count.
+12. For SNPS with an 8.2409% cluster-width limit, completed highs around
+    535.20–556.31 form MR 548.12 (6xM). It must remain visible between MR 464.46
+    and the higher resistance destinations; 505.69 must not cascade
+    `548.12 -> 505.69 -> 464.46` and remove it.
 
 ## TradingView validation sequence
 

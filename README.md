@@ -95,13 +95,15 @@ chaining:
 4. Conviction ranks greater Monthly touch count first, then greater temporal
    spread, then a narrower historical cluster.
 
-Resistance decluttering remains conviction-first. For equal-conviction
-cross-family resistance, `MR` takes preference over `R`, followed by a
-deterministic directional destination.
+Resistance decluttering mirrors the support policy: the nearest resistance is
+actionable, candidates are evaluated as non-transitive adjacent pairs, and a
+stronger paired higher level is retained with an `HC` marker. Cross-family
+arbitration compares only an overlapping `R` against an `MR`; conviction wins,
+with `MR` preferred on an exact conviction tie.
 
-This preserves timely alerts at the nearest support without losing an important
-stronger support beneath it. Suppressed zones are neither displayed nor alerted,
-keeping chart output and alert behavior consistent.
+This preserves timely alerts at the nearest support or resistance without
+losing an important stronger destination beyond it. Suppressed zones are neither
+displayed nor alerted, keeping chart output and alert behavior consistent.
 
 ## Alerts
 
@@ -159,7 +161,8 @@ old alert and create it again so the latest logic is used.
 - Orange: Developing Monthly support with two touches.
 - Red: Resistance from either the `R` or `MR` family.
 - Green: Post-breakout Retest support.
-- `HC` suffix: A retained lower support with greater conviction than M1.
+- `HC` suffix: A retained secondary support or resistance with greater
+  conviction than its paired actionable level.
 - Labels are placed at the left edge to keep the latest candles uncluttered.
 - No diagnostics table or verbose zone statistics are drawn.
 

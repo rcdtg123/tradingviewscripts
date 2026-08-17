@@ -34,6 +34,7 @@ type Zone
     int lastTouch = na
     float averageSpreadMonths = 0.0
     bool highConvictionSupport = false
+    bool highConvictionResistance = false
 
 type ResistanceCandidate
     Zone zone
@@ -368,33 +369,31 @@ f_isHighConvictionSupport(array<Zone> zones, int index) =>
          array.get(zones, index).highConvictionSupport
 
 f_declutterResistanceDestinations(array<Zone> zones) =>
-    array<Zone> distinct = array.copy(zones)
-    bool canConsolidate = true
-    while canConsolidate and array.size(distinct) > 1
-        canConsolidate := false
-        int closestPairIndex = -1
-        float closestDistance = na
-        for index = 0 to array.size(distinct) - 2
-            Zone lower = array.get(distinct, index)
-            Zone higher = array.get(distinct, index + 1)
+    array<Zone> survivors = array.new<Zone>()
+    int count = array.size(zones)
+    for zone in zones
+        zone.highConvictionResistance := false
+    int index = 0
+    while index < count
+        Zone lower = array.get(zones, index)
+        array.push(survivors, lower)
+        if index + 1 < count
+            Zone higher = array.get(zones, index + 1)
             float distance = lower.center != 0.0 ?
                  (higher.center - lower.center) / math.abs(lower.center) * 100.0 : na
-            bool insideCrowdingLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
-            bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
-            if insideCrowdingLimit and closerThanCurrent
-                closestDistance := distance
-                closestPairIndex := index
-                canConsolidate := true
-        if canConsolidate
-            Zone lower = array.get(distinct, closestPairIndex)
-            Zone higher = array.get(distinct, closestPairIndex + 1)
-            bool lowerWins = f_zoneHasHigherConviction(lower, higher)
-            bool higherWins = f_zoneHasHigherConviction(higher, lower)
-            // Equal-conviction resistance retains the higher destination.
-            int removeIndex = lowerWins and not higherWins ?
-                 closestPairIndex + 1 : closestPairIndex
-            array.remove(distinct, removeIndex)
-    distinct
+            bool isCrowdedPair = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            if isCrowdedPair
+                if f_zoneHasHigherConviction(higher, lower)
+                    higher.highConvictionResistance := true
+                    array.push(survivors, higher)
+                index += 2
+            else
+                index += 1
+        else
+            index += 1
+    survivors
+
+f_isHighConvictionResistance(Zone zone) => zone.highConvictionResistance
 
 f_sortResistanceCandidatesAscending(array<ResistanceCandidate> candidates) =>
     array<ResistanceCandidate> sorted = array.copy(candidates)
@@ -413,9 +412,9 @@ f_sortResistanceCandidatesAscending(array<ResistanceCandidate> candidates) =>
                 array.set(sorted, lowestIndex, temporary)
     sorted
 
-// Cross-family arbitration works on connected price neighborhoods. Monthly
-// touch count, temporal spread, and cluster width outrank type; MR preference
-// and the higher resistance destination are tie-breakers only.
+// Same-family lists have already been decluttered. Cross-family arbitration
+// therefore resolves only overlapping R/MR pairs and never compares two R or two
+// MR candidates again. Conviction outranks type; MR is a tie-breaker only.
 f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZones) =>
     array<ResistanceCandidate> combined = array.new<ResistanceCandidate>()
     for zone in oldResistanceZones
@@ -424,38 +423,38 @@ f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZone
         array.push(combined, ResistanceCandidate.new(zone, true))
     combined := f_sortResistanceCandidatesAscending(combined)
 
-    array<ResistanceCandidate> survivors = array.new<ResistanceCandidate>()
-    int count = array.size(combined)
-    int componentStart = 0
-    while componentStart < count
-        int componentEnd = componentStart
-        while componentEnd + 1 < count
-            ResistanceCandidate current = array.get(combined, componentEnd)
-            ResistanceCandidate next = array.get(combined, componentEnd + 1)
-            float adjacentDistance = current.zone.center != 0.0 ?
-                 (next.zone.center - current.zone.center) / math.abs(current.zone.center) * 100.0 : na
-            if not na(adjacentDistance) and adjacentDistance <= maximumOverlapGroupSpanPercent
-                componentEnd += 1
-            else
-                break
-
-        int strongestIndex = componentStart
-        for index = componentStart to componentEnd
-            ResistanceCandidate componentCandidate = array.get(combined, index)
-            ResistanceCandidate incumbent = array.get(combined, strongestIndex)
-            bool candidateStronger = f_zoneHasHigherConviction(
-                 componentCandidate.zone, incumbent.zone)
-            bool equalStrength = f_equalConviction(componentCandidate.zone, incumbent.zone)
-            bool mrTieBreak = equalStrength and componentCandidate.isMonthlyHigh and not incumbent.isMonthlyHigh
-            bool higherDestinationTieBreak =
-                 equalStrength and componentCandidate.isMonthlyHigh == incumbent.isMonthlyHigh and
-                 componentCandidate.zone.center > incumbent.zone.center
-            if candidateStronger or mrTieBreak or higherDestinationTieBreak
-                strongestIndex := index
-
-        array.push(survivors, array.get(combined, strongestIndex))
-        componentStart := componentEnd + 1
-    survivors
+    bool canConsolidate = true
+    while canConsolidate and array.size(combined) > 1
+        canConsolidate := false
+        int closestPairIndex = -1
+        float closestDistance = na
+        int closestHigherIndex = -1
+        for lowerIndex = 0 to array.size(combined) - 2
+            for higherIndex = lowerIndex + 1 to array.size(combined) - 1
+                ResistanceCandidate lower = array.get(combined, lowerIndex)
+                ResistanceCandidate higher = array.get(combined, higherIndex)
+                float distance = lower.zone.center != 0.0 ?
+                     (higher.zone.center - lower.zone.center) / math.abs(lower.zone.center) * 100.0 : na
+                bool crossFamilyPair = lower.isMonthlyHigh != higher.isMonthlyHigh
+                bool insideLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+                bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
+                if crossFamilyPair and insideLimit and closerThanCurrent
+                    closestPairIndex := lowerIndex
+                    closestHigherIndex := higherIndex
+                    closestDistance := distance
+                    canConsolidate := true
+        if canConsolidate
+            ResistanceCandidate lower = array.get(combined, closestPairIndex)
+            ResistanceCandidate higher = array.get(combined, closestHigherIndex)
+            bool higherStronger = f_zoneHasHigherConviction(higher.zone, lower.zone)
+            bool lowerStronger = f_zoneHasHigherConviction(lower.zone, higher.zone)
+            bool equalStrength = f_equalConviction(lower.zone, higher.zone)
+            bool higherWinsTie = equalStrength and higher.isMonthlyHigh and not lower.isMonthlyHigh
+            int removeIndex = higherStronger or higherWinsTie ? closestPairIndex : closestHigherIndex
+            if not higherStronger and not lowerStronger and not higherWinsTie
+                removeIndex := lower.isMonthlyHigh ? closestHigherIndex : closestPairIndex
+            array.remove(combined, removeIndex)
+    combined
 
 f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>
     if na(firstCenter) or na(secondCenter)
@@ -728,7 +727,8 @@ if barstate.islast
                  extend = extend.right,
                  color = resistanceColor,
                  style = line.style_dashed)
-            string labelText = "R" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick)
+            string roleText = f_isHighConvictionResistance(zone) ? " HC" : ""
+            string labelText = "R" + str.tostring(index + 1) + roleText + " " + str.tostring(zone.center, format.mintick)
             label zoneLabel = label.new(
                  x = chart.left_visible_bar_time,
                  y = zone.center,
@@ -757,7 +757,7 @@ if barstate.islast
                  color = resistanceColor, style = line.style_dashed)
             label zoneLabel = label.new(
                  x = chart.left_visible_bar_time, y = zone.center,
-                 text = "MR" + str.tostring(index + 1) + " " + str.tostring(zone.center, format.mintick),
+                 text = "MR" + str.tostring(index + 1) + (f_isHighConvictionResistance(zone) ? " HC" : "") + " " + str.tostring(zone.center, format.mintick),
                  xloc = xloc.bar_time, style = label.style_label_left,
                  color = resistanceColor, textcolor = color.white)
             array.push(renderedBoxes, zoneBox)
@@ -913,6 +913,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
     if liveResistanceCount > 0
         for zoneIndex = 0 to liveResistanceCount - 1
             Zone zone = array.get(resistanceZones, zoneIndex)
+            string resistanceRole = f_isHighConvictionResistance(zone) ? "\nRole: High-conviction resistance" : "\nRole: Actionable resistance"
             float resistance = zone.center
             float approachBoundary = f_resistanceLow(zone, confirmedDailyAtrPercent)
             float convictionBoundary = resistance + breakoutConvictionAtr * confirmedDailyAtr
@@ -946,7 +947,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + resistanceRole
                 alert(resistanceMessage, alert.freq_all)
 
             bool priceHasConviction = close >= convictionBoundary
@@ -969,7 +970,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + resistanceRole
                 alert(breakoutMessage2x, alert.freq_all)
 
             if shouldAlert4x
@@ -980,7 +981,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + resistanceRole
                 alert(breakoutMessage4x, alert.freq_all)
 
             if shouldAlert8x
@@ -991,7 +992,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
-                     "\nStrength: " + f_strengthLabel(zone)
+                     "\nStrength: " + f_strengthLabel(zone) + resistanceRole
                 alert(breakoutMessage8x, alert.freq_all)
 
     // Monthly-high resistance owns its consolidated component lifecycle.
@@ -1036,6 +1037,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             int storedRank = array.get(mrOriginalRank, stateIndex)
             int mrRank = storedRank > 0 ? storedRank : 1
             string structureName = "MR" + str.tostring(mrRank)
+            string mrRole = f_isHighConvictionResistance(mrZone) ? "\nRole: High-conviction resistance" : "\nRole: Actionable resistance"
 
             bool shouldApproach =
                  enableResistanceApproachAlerts and crossedApproachUp and
@@ -1048,7 +1050,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(mrZone),
+                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
                      alert.freq_all)
 
             bool breakoutQualified =
@@ -1067,7 +1069,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
-                     "\nStrength: " + f_strengthLabel(mrZone),
+                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
                      alert.freq_all)
 
             bool retestIsActive = array.get(mrRetestActive, stateIndex)
@@ -1085,7 +1087,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nRetest support: " + str.tostring(resistance, format.mintick) +
                      "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
                      "\nBreakout volume: " + str.tostring(array.get(mrBreakoutVolume, stateIndex), "#.##") + "x" +
-                     "\nStrength: " + f_strengthLabel(mrZone),
+                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
                      alert.freq_all)
 
             if retestIsActive and close < invalidationBoundary
