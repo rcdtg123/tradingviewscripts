@@ -56,12 +56,12 @@ accepting these dates or prices as exact.
    support from the visible shortlist.
 3. For equal-distance zones, prefer greater temporal spread, then more touches,
    then the narrower zone.
-4. Inside each connected 10% support neighborhood, retain the highest center as
-   the nearest actionable support. Also retain the strongest lower member only
-   when its conviction exceeds that nearest support.
-5. Supports 99.430, 98.805, 97.691, 96.912, and 96.366 whose centers form one
-   crowding chain retain 99.430 as the actionable level plus at most one stronger
-   lower high-conviction member.
+4. Resolve support candidates as non-transitive adjacent pairs from highest to
+   lowest. Retain each pair's higher member as actionable and retain its lower
+   member as `HC` only when the lower member has greater conviction.
+5. A chain of individually close supports must not collapse distinct endpoints
+   whose direct separation exceeds 10% merely because intermediate levels bridge
+   them.
 6. If the next non-overlapping support is near 89, the visible result begins
    `M1 96.xx`, `M2 89.xx`.
 7. Group the complete candidate list before selecting five visible/alertable
@@ -79,6 +79,9 @@ accepting these dates or prices as exact.
 11. For META after price moves below the 553.xx support, preserve the nearer
     522.xx two-touch zone as M1. Also retain the stronger lower 477.xx zone as a
     separate `HC` support; both must draw and alert from the same boundaries.
+12. For META near 568, the 522.xx intermediate candidate must not transitively
+    group 553.xx with 477.xx. The visible supports begin near 553.xx and 477.xx,
+    not 553.xx and 339.xx.
 
 ## Resistance and volume-breakout cases
 

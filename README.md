@@ -83,13 +83,16 @@ Nearby structural levels can otherwise create overlapping boxes and redundant
 alerts. The indicator therefore declutters candidates within a 10% neighborhood
 by default before assigning visible level numbers.
 
-Support neighborhoods preserve two complementary roles:
+Support decluttering preserves two complementary roles without transitive
+chaining:
 
 1. The nearest qualifying support is retained as the actionable level for
    approach and reached alerts.
-2. When a lower support has greater conviction, the strongest such lower level
-   is also retained and marked `HC` for high conviction.
-3. Conviction ranks greater Monthly touch count first, then greater temporal
+2. Adjacent candidates are evaluated as non-transitive pairs, preventing a
+   middle level from collapsing two otherwise distinct support destinations.
+3. When a paired lower support has greater conviction, it is also retained and
+   marked `HC` for high conviction.
+4. Conviction ranks greater Monthly touch count first, then greater temporal
    spread, then a narrower historical cluster.
 
 Resistance decluttering remains conviction-first. For equal-conviction

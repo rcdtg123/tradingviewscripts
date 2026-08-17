@@ -78,11 +78,12 @@ scope is exclusively Monthly market structure.
   for the visible resistance shortlist only when its cluster contains at least
   four qualifying completed Monthly lows by default.
 - Declutter nearby display candidates independently of historical clustering.
-  Adjacent candidates within 10% form a connected crowding neighborhood.
-- For each support neighborhood, always preserve the highest center as the
-  nearest actionable support for approach/reached alerts. If a lower member has
-  greater conviction than that nearest member, also preserve the strongest
-  lower member as a separate high-conviction support. Suppress all other members.
+  Resolve adjacent support pairs from highest to lowest using 10% proximity by
+  default; do not join them into transitive chains.
+- For each crowded pair, always preserve the higher center as the nearer
+  actionable support for approach/reached alerts. If the lower member has
+  greater conviction, also preserve it as a separate high-conviction support;
+  otherwise suppress only that paired lower member.
 - Monthly touch count is the primary conviction measure, followed by temporal
   spread and narrower cluster width. Thus a weaker nearby support is no longer
   allowed to hide the immediate actionable level, while a stronger lower level
@@ -115,7 +116,7 @@ scope is exclusively Monthly market structure.
 - Label visible zones by price proximity: `M1 <center>`, `M2 <center>`, and so
   on. M1 is the nearest Monthly support.
 - Add `HC` to the compact label of a retained lower support whose conviction
-  exceeds the nearest member of its crowding neighborhood, and include
+  exceeds the higher member of its crowded pair, and include
   `Role: High-conviction support` in its dynamic alerts.
 - Do not display a diagnostics table or verbose zone statistics on the chart.
 

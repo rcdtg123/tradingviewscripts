@@ -331,46 +331,34 @@ f_sortHighestCenterFirst(array<Zone> zones) =>
                 array.set(sorted, highestIndex, temporary)
     sorted
 
-// Support decluttering preserves two different jobs inside each connected
-// crowding neighborhood. The highest center is the nearest actionable support
-// and must remain available for approach/reached alerts. If a lower member has
-// greater Monthly conviction, retain the strongest such member as a separate
-// high-conviction destination. All other crowded members are suppressed.
+// Support decluttering is deliberately non-transitive. Resolve adjacent pairs
+// from highest to lowest so an intermediate level cannot chain two otherwise
+// distinct destinations into one oversized neighborhood. Always preserve the
+// higher (nearer) member. Preserve and mark the lower member too when it has
+// greater Monthly conviction; otherwise suppress only that paired lower member.
 f_declutterSupportDestinations(array<Zone> zones) =>
     array<Zone> survivors = array.new<Zone>()
     int count = array.size(zones)
     for zone in zones
         zone.highConvictionSupport := false
-    int componentStart = 0
-    while componentStart < count
-        int componentEnd = componentStart
-        while componentEnd + 1 < count
-            Zone higher = array.get(zones, componentEnd)
-            Zone lower = array.get(zones, componentEnd + 1)
-            float adjacentDistance = higher.center != 0.0 ?
+    int index = 0
+    while index < count
+        Zone higher = array.get(zones, index)
+        array.push(survivors, higher)
+        if index + 1 < count
+            Zone lower = array.get(zones, index + 1)
+            float distance = higher.center != 0.0 ?
                  (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
-            if not na(adjacentDistance) and adjacentDistance <= maximumOverlapGroupSpanPercent
-                componentEnd += 1
+            bool isCrowdedPair = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            if isCrowdedPair
+                if f_zoneHasHigherConviction(lower, higher)
+                    lower.highConvictionSupport := true
+                    array.push(survivors, lower)
+                index += 2
             else
-                break
-
-        Zone nearest = array.get(zones, componentStart)
-        array.push(survivors, nearest)
-
-        if componentEnd > componentStart
-            int strongestLowerIndex = componentStart + 1
-            if componentEnd > componentStart + 1
-                for index = componentStart + 2 to componentEnd
-                    Zone candidate = array.get(zones, index)
-                    Zone incumbent = array.get(zones, strongestLowerIndex)
-                    if f_zoneHasHigherConviction(candidate, incumbent)
-                        strongestLowerIndex := index
-            Zone strongestLower = array.get(zones, strongestLowerIndex)
-            if f_zoneHasHigherConviction(strongestLower, nearest)
-                strongestLower.highConvictionSupport := true
-                array.push(survivors, strongestLower)
-
-        componentStart := componentEnd + 1
+                index += 1
+        else
+            index += 1
     survivors
 
 // A lower support is explicitly marked high-conviction when it outranks the

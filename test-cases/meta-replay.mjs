@@ -114,30 +114,25 @@ function declutter(zones, support, limit = 10) {
   if (support) {
     const survivors = [];
     for (const zone of zones) zone.highConvictionSupport = false;
-    let componentStart = 0;
-    while (componentStart < zones.length) {
-      let componentEnd = componentStart;
-      while (componentEnd + 1 < zones.length) {
-        const higher = zones[componentEnd];
-        const lower = zones[componentEnd + 1];
+    let index = 0;
+    while (index < zones.length) {
+      const higher = zones[index];
+      survivors.push(higher);
+      if (index + 1 < zones.length) {
+        const lower = zones[index + 1];
         const distance = (higher.center - lower.center) / Math.abs(higher.center) * 100;
-        if (distance <= limit) componentEnd++;
-        else break;
-      }
-
-      const nearest = zones[componentStart];
-      survivors.push(nearest);
-      if (componentEnd > componentStart) {
-        let strongestLower = zones[componentStart + 1];
-        for (let index = componentStart + 2; index <= componentEnd; index++) {
-          if (stronger(zones[index], strongestLower)) strongestLower = zones[index];
+        if (distance <= limit) {
+          if (stronger(lower, higher)) {
+            lower.highConvictionSupport = true;
+            survivors.push(lower);
+          }
+          index += 2;
+        } else {
+          index += 1;
         }
-        if (stronger(strongestLower, nearest)) {
-          strongestLower.highConvictionSupport = true;
-          survivors.push(strongestLower);
-        }
+      } else {
+        index += 1;
       }
-      componentStart = componentEnd + 1;
     }
     return survivors;
   }
@@ -295,6 +290,8 @@ assert.equal(replay[2].supports[0].role, "actionable");
 assert.equal(replay[2].supports[1].center, 477.9);
 assert.equal(replay[2].supports[1].role, "high-conviction");
 assert.deepEqual(replay[2].alerts, ["Reached M1 522.38 (2xM)"]);
+assert.equal(replay[0].supports[0].center, 553.3);
+assert.equal(replay[0].supports[1].center, 477.9);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,
