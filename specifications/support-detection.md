@@ -20,6 +20,11 @@ scope is exclusively Monthly market structure.
 - Convert a qualified MR breakout into green retest support. Alert
   once on a later downward approach and invalidate below
   `MR - 0.25 * Daily ATR`.
+- Reconstruct a historical retest when a completed-high cluster is at least
+  `3xM` and live price is already above `MR + 0.25 * Daily ATR`, even if the
+  breakout occurred before the script was loaded.
+- Suppress and retire a retest when it overlaps a displayed established
+  (`3xM+`) Monthly-low support; the established M zone owns display and alerts.
 
 ## Data
 

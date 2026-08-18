@@ -141,6 +141,14 @@ accepting these dates or prices as exact.
     535.20–556.31 form MR 548.12 (6xM). It must remain visible between MR 464.46
     and the higher resistance destinations; 505.69 must not cascade
     `548.12 -> 505.69 -> 464.46` and remove it.
+13. For ANET, completed April-June 2026 highs at 179.80, 179.10, and 177.48
+    establish the requested resistance. Completed July at 189.817 also joins
+    under the current volatility limit, producing approximately 179.45 (`4xM`).
+    Reconstruct that nearest qualifying zone as Retest support when live price
+    is already above its ATR conviction boundary, even if the script was loaded
+    after the breakout. Do not reconstruct every older Monthly-high cluster.
+14. If a displayed Monthly-low support with at least `3xM` overlaps that Retest
+    zone, show and alert only the established M support and retire the Retest.
 
 ## TradingView validation sequence
 

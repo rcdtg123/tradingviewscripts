@@ -463,6 +463,13 @@ f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>
         float denominator = math.max(math.abs((firstCenter + secondCenter) / 2.0), syminfo.mintick)
         math.abs(firstCenter - secondCenter) / denominator * 100.0 <= maximumWidthPercent / 2.0
 
+f_zonesOverlap(Zone first, Zone second, float dailyAtrPercent) =>
+    float firstLow = f_alertLow(first)
+    float firstHigh = f_alertHigh(first, dailyAtrPercent)
+    float secondLow = f_alertLow(second)
+    float secondHigh = f_alertHigh(second, dailyAtrPercent)
+    math.max(firstLow, secondLow) <= math.min(firstHigh, secondHigh)
+
 //──────────────────────────────────────────────────────────────────────────────
 // Confirmed source data
 //──────────────────────────────────────────────────────────────────────────────
@@ -547,6 +554,7 @@ varip array<bool> mrLatched = array.new<bool>()
 varip array<bool> mrApproachSent = array.new<bool>()
 varip array<bool> mrBreakoutSent = array.new<bool>()
 varip array<bool> mrRetestActive = array.new<bool>()
+varip array<bool> mrHistoricalRetestSeeded = array.new<bool>()
 varip array<bool> mrRetestSent = array.new<bool>()
 varip array<float> mrBreakoutVolume = array.new<float>()
 varip array<int> mrOriginalRank = array.new<int>()
@@ -565,6 +573,7 @@ f_mrStateIndex(float center) =>
         array.push(mrApproachSent, false)
         array.push(mrBreakoutSent, false)
         array.push(mrRetestActive, false)
+        array.push(mrHistoricalRetestSeeded, false)
         array.push(mrRetestSent, false)
         array.push(mrBreakoutVolume, na)
         array.push(mrOriginalRank, 0)
@@ -639,9 +648,49 @@ if barstate.islast and array.size(detectedZones) > 0 and not na(confirmedDailyAt
                     currentZone := zone
 
 if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confirmedDailyAtr)
+    float nearestReconstructibleRetestCenter = na
+    for historicalZone in detectedMonthlyHighZones
+        float historicalConvictionBoundary =
+             historicalZone.center + breakoutConvictionAtr * confirmedDailyAtr
+        bool isReconstructible =
+             historicalZone.touches >= 3 and close >= historicalConvictionBoundary
+        if isReconstructible and
+             (na(nearestReconstructibleRetestCenter) or
+              historicalZone.center > nearestReconstructibleRetestCenter)
+            nearestReconstructibleRetestCenter := historicalZone.center
+
     for zone in detectedMonthlyHighZones
-        int mrStateIndex = f_findMrState(zone.center)
-        bool isRetest = mrStateIndex >= 0 and array.get(mrRetestActive, mrStateIndex)
+        int mrStateIndex = f_mrStateIndex(zone.center)
+        float historicalConvictionBoundary = zone.center + breakoutConvictionAtr * confirmedDailyAtr
+        float historicalInvalidationBoundary = zone.center - rearmDistanceAtr * confirmedDailyAtr
+        bool historicalBreakoutIsReconstructible =
+             not na(nearestReconstructibleRetestCenter) and
+             math.abs(zone.center - nearestReconstructibleRetestCenter) <= syminfo.mintick and
+             close >= historicalConvictionBoundary
+        bool historicalRetestAlreadySeeded = array.get(mrHistoricalRetestSeeded, mrStateIndex)
+        if historicalBreakoutIsReconstructible and not historicalRetestAlreadySeeded and
+             not array.get(mrRetestActive, mrStateIndex)
+            array.set(mrRetestActive, mrStateIndex, true)
+            array.set(mrHistoricalRetestSeeded, mrStateIndex, true)
+            array.set(mrRetestSent, mrStateIndex, false)
+            array.set(mrBreakoutVolume, mrStateIndex, na)
+
+        bool overlapsEstablishedMonthlySupport = false
+        int visibleSupportCount = math.min(displayedZones, array.size(supportZones))
+        if visibleSupportCount > 0
+            for supportIndex = 0 to visibleSupportCount - 1
+                Zone supportZone = array.get(supportZones, supportIndex)
+                if supportZone.touches >= 3 and
+                     f_zonesOverlap(zone, supportZone, confirmedDailyAtrPercent)
+                    overlapsEstablishedMonthlySupport := true
+                    break
+
+        bool isRetest = array.get(mrRetestActive, mrStateIndex)
+        if isRetest and (close < historicalInvalidationBoundary or overlapsEstablishedMonthlySupport)
+            array.set(mrRetestActive, mrStateIndex, false)
+            array.set(mrRetestSent, mrStateIndex, false)
+            array.set(mrBreakoutVolume, mrStateIndex, na)
+            isRetest := false
         if isRetest
             array.push(retestZones, zone)
         else if zone.center > resistanceReferencePrice
@@ -1082,6 +1131,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 mrBreakoutEvent := true
                 array.set(mrBreakoutSent, stateIndex, true)
                 array.set(mrRetestActive, stateIndex, true)
+                array.set(mrHistoricalRetestSeeded, stateIndex, true)
                 array.set(mrRetestSent, stateIndex, false)
                 array.set(mrBreakoutVolume, stateIndex, volumeMultiple)
                 alert(
@@ -1102,12 +1152,16 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  not array.get(mrRetestSent, stateIndex)
                 mrRetestEvent := true
                 array.set(mrRetestSent, stateIndex, true)
+                float storedBreakoutVolume = array.get(mrBreakoutVolume, stateIndex)
+                string breakoutContext = not na(storedBreakoutVolume) ?
+                     "\nBreakout volume: " + str.tostring(storedBreakoutVolume, "#.##") + "x" :
+                     "\nBreakout: reconstructed from completed Monthly history"
                 alert(
                      syminfo.tickerid + " approaching " + structureName + " retest support" +
                      "\nLive price: " + str.tostring(close, format.mintick) +
                      "\nRetest support: " + str.tostring(resistance, format.mintick) +
                      "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
-                     "\nBreakout volume: " + str.tostring(array.get(mrBreakoutVolume, stateIndex), "#.##") + "x" +
+                     breakoutContext +
                      "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
                      alert.freq_all)
 

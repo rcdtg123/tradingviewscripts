@@ -5,6 +5,8 @@ const monthlyPath = "/Users/dhavader/Downloads/BATS_META, 1M.csv";
 const dailyPath = "/Users/dhavader/Downloads/BATS_META, 1D.csv";
 const plabMonthlyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1M.csv";
 const plabDailyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1D.csv";
+const anetMonthlyPath = "/Users/dhavader/Downloads/BATS_ANET, 1M.csv";
+const anetDailyPath = "/Users/dhavader/Downloads/BATS_ANET, 1D.csv";
 
 function readCsv(path) {
   const [header, ...lines] = fs.readFileSync(path, "utf8").trim().split(/\r?\n/);
@@ -339,6 +341,32 @@ const plabNormalizedCenters = plabSupportCenters(plabAtrPercent[plabLatestConfir
 const plabHistoricallySampledMonthlyCenters = plabSupportCenters(plabAtrPercent[plabJuly31Index]);
 assert.deepEqual(plabNormalizedCenters.slice(0, 2), [27.58, 24.73]);
 assert.equal(plabHistoricallySampledMonthlyCenters[0], 25.32);
+
+const anetDaily = readCsv(anetDailyPath);
+const anetTrueRange = anetDaily.map((bar, index) => index === 0
+  ? bar.high - bar.low
+  : Math.max(
+    bar.high - bar.low,
+    Math.abs(bar.high - anetDaily[index - 1].close),
+    Math.abs(bar.low - anetDaily[index - 1].close),
+  ));
+const anetAtr = rma(anetTrueRange, 14);
+const anetConfirmedAtr = anetAtr[anetDaily.length - 2];
+const anetAtrPercent = sma(
+  anetAtr.map((value, index) => value / anetDaily[index].close * 100),
+  50,
+)[anetDaily.length - 2];
+const anetMonthly = readCsv(anetMonthlyPath).slice(0, -1).slice(-120);
+const anetHighZones = detect(
+  anetMonthly.map((bar) => ({ price: bar.high, timestamp: bar.time })),
+  anetAtrPercent * 2,
+  2,
+);
+const anetHistoricalRetest = anetHighZones.find((zone) =>
+  zone.touches >= 3 && Math.abs(zone.center - 179.45) < 0.01);
+assert.ok(anetHistoricalRetest);
+assert.equal(anetHistoricalRetest.touches, 4);
+assert.ok(195.03 >= anetHistoricalRetest.center + 0.25 * anetConfirmedAtr);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,

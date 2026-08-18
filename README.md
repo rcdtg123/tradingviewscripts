@@ -55,8 +55,16 @@ fallen below it. These zones:
 ### Retest support
 
 After a valid volume-confirmed `MR` breakout, the broken resistance can become
-green Retest support. The indicator monitors a later downward return to that
-level and invalidates the retest state if price falls sufficiently below it.
+green Retest support. The indicator also reconstructs this state after loading:
+an established `3xM` (or stronger) Monthly-high resistance already exceeded by
+the existing ATR conviction distance is treated as historical Retest support.
+This lets a qualifying breakout remain visible even when it happened before the
+indicator or alert was created.
+
+An established `3xM+` Monthly-low support has priority. If its displayed zone
+overlaps a Retest-support zone, the Retest is removed so the same region is not
+drawn or alerted twice. A Retest is also invalidated if price falls sufficiently
+below its center.
 
 ## Volatility-adaptive zones
 
