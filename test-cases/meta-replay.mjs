@@ -368,6 +368,19 @@ assert.ok(anetHistoricalRetest);
 assert.equal(anetHistoricalRetest.touches, 4);
 assert.ok(195.03 >= anetHistoricalRetest.center + 0.25 * anetConfirmedAtr);
 
+const dailyAlertDates = new Map();
+function shouldSendDailyAlert(symbol, eventType, center, date) {
+  const key = `${symbol}|${eventType}|${center.toFixed(2)}`;
+  if (dailyAlertDates.get(key) === date) return false;
+  dailyAlertDates.set(key, date);
+  return true;
+}
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260818), false);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_BREAKOUT", 316.2, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 320.0, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260819), true);
+
 console.log(JSON.stringify({
   dailyRows: daily.length,
   monthlyCompletedRows: monthly.length,

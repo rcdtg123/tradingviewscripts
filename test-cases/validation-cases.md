@@ -149,6 +149,11 @@ accepting these dates or prices as exact.
     after the breakout. Do not reconstruct every older Monthly-high cluster.
 14. If a displayed Monthly-low support with at least `3xM` overlaps that Retest
     zone, show and alert only the established M support and retire the Retest.
+15. If AAPL crosses upward into MR1 at 316.20 twice on the same exchange date,
+    send `MR_APPROACH|316.20` only on the first crossing. A support, breakout,
+    or different resistance alert remains eligible that day. After a normal
+    rearm and a fresh crossing on the next exchange date, allow one new MR1
+    approach notification.
 
 ## TradingView validation sequence
 

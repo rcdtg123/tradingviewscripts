@@ -25,6 +25,11 @@ scope is exclusively Monthly market structure.
   breakout occurred before the script was loaded.
 - Suppress and retire a retest when it overlaps a displayed established
   (`3xM+`) Monthly-low support; the established M zone owns display and alerts.
+- Apply a final Daily deduplication gate to every dynamic alert and matching
+  `alertcondition`. The key is symbol + event type + structural center. Permit
+  its first fire per exchange date, suppress repeats that date, and permit a
+  newly triggered cycle on a later date. Distinct events and centers remain
+  independent.
 
 ## Data
 

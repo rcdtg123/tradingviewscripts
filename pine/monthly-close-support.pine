@@ -870,6 +870,23 @@ varip array<bool> resistanceApproachSent = array.new<bool>()
 varip array<bool> breakout2xSent = array.new<bool>()
 varip array<bool> breakout4xSent = array.new<bool>()
 varip array<bool> breakout8xSent = array.new<bool>()
+varip array<string> dailyAlertKeys = array.new<string>()
+varip array<int> dailyAlertDates = array.new<int>()
+
+f_dailyAlertDate() =>
+    year(time) * 10000 + month(time) * 100 + dayofmonth(time)
+
+f_shouldSendDailyAlert(string eventType, float center) =>
+    string key = syminfo.tickerid + "|" + eventType + "|" + str.tostring(center, format.mintick)
+    int currentDate = f_dailyAlertDate()
+    int keyIndex = array.indexof(dailyAlertKeys, key)
+    bool shouldSend = keyIndex == -1 or array.get(dailyAlertDates, keyIndex) != currentDate
+    if keyIndex == -1
+        array.push(dailyAlertKeys, key)
+        array.push(dailyAlertDates, currentDate)
+    else if shouldSend
+        array.set(dailyAlertDates, keyIndex, currentDate)
+    shouldSend
 
 f_stateIndex(float center) =>
     int result = -1
@@ -942,7 +959,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  not array.get(breakSent, stateIndex)
 
             if shouldApproach
-                approachEvent := true
                 array.set(approachSent, stateIndex, true)
                 string approachMessage =
                      syminfo.tickerid + " approaching M" + str.tostring(zoneIndex + 1) + " Monthly support" +
@@ -950,10 +966,11 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
                      "\nStrength: " + f_strengthLabel(zone) + supportRole
-                alert(approachMessage, alert.freq_all)
+                if f_shouldSendDailyAlert("M_APPROACH", support)
+                    approachEvent := true
+                    alert(approachMessage, alert.freq_all)
 
             if shouldReach
-                reachedEvent := true
                 array.set(approachSent, stateIndex, true)
                 array.set(reachedSent, stateIndex, true)
                 string reachedMessage =
@@ -962,10 +979,11 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
                      "\nStrength: " + f_strengthLabel(zone) + supportRole
-                alert(reachedMessage, alert.freq_all)
+                if f_shouldSendDailyAlert("M_REACHED", support)
+                    reachedEvent := true
+                    alert(reachedMessage, alert.freq_all)
 
             if shouldBreak
-                breakEvent := true
                 array.set(breakSent, stateIndex, true)
                 string breakMessage =
                      syminfo.tickerid + " broke below M" + str.tostring(zoneIndex + 1) + " Monthly support" +
@@ -973,7 +991,9 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nSupport: " + str.tostring(support, format.mintick) +
                      "\nBreak boundary: " + str.tostring(breakBoundary, format.mintick) +
                      "\nStrength: " + f_strengthLabel(zone) + supportRole
-                alert(breakMessage, alert.freq_all)
+                if f_shouldSendDailyAlert("M_BREAK", support)
+                    breakEvent := true
+                    alert(breakMessage, alert.freq_all)
 
     int liveResistanceCount = math.min(displayedResistanceZones, array.size(resistanceZones))
     float volumeMultiple =
@@ -1010,7 +1030,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  not array.get(resistanceApproachSent, stateIndex)
 
             if shouldApproachResistance
-                resistanceApproachEvent := true
                 array.set(resistanceApproachSent, stateIndex, true)
                 string resistanceMessage =
                      syminfo.tickerid + " approaching R" + str.tostring(zoneIndex + 1) + " Monthly resistance" +
@@ -1018,7 +1037,9 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nResistance: " + str.tostring(resistance, format.mintick) +
                      "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
                      "\nStrength: " + f_strengthLabel(zone) + resistanceRole
-                alert(resistanceMessage, alert.freq_all)
+                if f_shouldSendDailyAlert("R_APPROACH", resistance)
+                    resistanceApproachEvent := true
+                    alert(resistanceMessage, alert.freq_all)
 
             bool priceHasConviction = close >= convictionBoundary
             bool eligibleBreakout =
@@ -1029,9 +1050,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             bool shouldAlert4x = eligibleBreakout and volumeMultiple >= 4.0 and not array.get(breakout4xSent, stateIndex)
             bool shouldAlert8x = eligibleBreakout and volumeMultiple >= 8.0 and not array.get(breakout8xSent, stateIndex)
 
-            if shouldAlert2x or shouldAlert4x or shouldAlert8x
-                resistanceBreakoutEvent := true
-
             if shouldAlert2x
                 array.set(breakout2xSent, stateIndex, true)
                 string breakoutMessage2x =
@@ -1041,7 +1059,9 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
                      "\nStrength: " + f_strengthLabel(zone) + resistanceRole
-                alert(breakoutMessage2x, alert.freq_all)
+                if f_shouldSendDailyAlert("R_BREAKOUT_2X", resistance)
+                    resistanceBreakoutEvent := true
+                    alert(breakoutMessage2x, alert.freq_all)
 
             if shouldAlert4x
                 array.set(breakout4xSent, stateIndex, true)
@@ -1052,7 +1072,9 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
                      "\nStrength: " + f_strengthLabel(zone) + resistanceRole
-                alert(breakoutMessage4x, alert.freq_all)
+                if f_shouldSendDailyAlert("R_BREAKOUT_4X", resistance)
+                    resistanceBreakoutEvent := true
+                    alert(breakoutMessage4x, alert.freq_all)
 
             if shouldAlert8x
                 array.set(breakout8xSent, stateIndex, true)
@@ -1063,7 +1085,9 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                      "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
                      "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
                      "\nStrength: " + f_strengthLabel(zone) + resistanceRole
-                alert(breakoutMessage8x, alert.freq_all)
+                if f_shouldSendDailyAlert("R_BREAKOUT_8X", resistance)
+                    resistanceBreakoutEvent := true
+                    alert(breakoutMessage8x, alert.freq_all)
 
     // Monthly-high resistance owns its consolidated component lifecycle.
     int visibleMrCount = math.min(displayedMonthlyHighZones, array.size(monthlyHighResistanceZones))
@@ -1113,35 +1137,37 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  enableResistanceApproachAlerts and crossedApproachUp and
                  not array.get(mrApproachSent, stateIndex)
             if shouldApproach
-                mrApproachEvent := true
                 array.set(mrApproachSent, stateIndex, true)
-                alert(
-                     syminfo.tickerid + " approaching " + structureName + " Monthly resistance" +
-                     "\nLive price: " + str.tostring(close, format.mintick) +
-                     "\nResistance: " + str.tostring(resistance, format.mintick) +
-                     "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
-                     alert.freq_all)
+                if f_shouldSendDailyAlert("MR_APPROACH", resistance)
+                    mrApproachEvent := true
+                    alert(
+                         syminfo.tickerid + " approaching " + structureName + " Monthly resistance" +
+                         "\nLive price: " + str.tostring(close, format.mintick) +
+                         "\nResistance: " + str.tostring(resistance, format.mintick) +
+                         "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
+                         "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
+                         alert.freq_all)
 
             bool breakoutQualified =
                  enableResistanceBreakoutAlerts and array.get(mrLatched, stateIndex) and
                  not array.get(mrBreakoutSent, stateIndex) and
                  close >= convictionBoundary and not na(volumeMultiple) and volumeMultiple >= 2.0
             if breakoutQualified
-                mrBreakoutEvent := true
                 array.set(mrBreakoutSent, stateIndex, true)
                 array.set(mrRetestActive, stateIndex, true)
                 array.set(mrHistoricalRetestSeeded, stateIndex, true)
                 array.set(mrRetestSent, stateIndex, false)
                 array.set(mrBreakoutVolume, stateIndex, volumeMultiple)
-                alert(
-                     syminfo.tickerid + " breakout " + structureName + " Monthly resistance" +
-                     "\nLive price: " + str.tostring(close, format.mintick) +
-                     "\nResistance: " + str.tostring(resistance, format.mintick) +
-                     "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
-                     "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
-                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
-                     alert.freq_all)
+                if f_shouldSendDailyAlert("MR_BREAKOUT", resistance)
+                    mrBreakoutEvent := true
+                    alert(
+                         syminfo.tickerid + " breakout " + structureName + " Monthly resistance" +
+                         "\nLive price: " + str.tostring(close, format.mintick) +
+                         "\nResistance: " + str.tostring(resistance, format.mintick) +
+                         "\nConviction boundary: " + str.tostring(convictionBoundary, format.mintick) +
+                         "\nActual volume: " + str.tostring(volumeMultiple, "#.##") + "x prior 20-day average" +
+                         "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
+                         alert.freq_all)
 
             bool retestIsActive = array.get(mrRetestActive, stateIndex)
             bool crossedRetestDown =
@@ -1150,20 +1176,21 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  close <= retestBoundary and close >= resistance
             if enableResistanceApproachAlerts and crossedRetestDown and
                  not array.get(mrRetestSent, stateIndex)
-                mrRetestEvent := true
                 array.set(mrRetestSent, stateIndex, true)
                 float storedBreakoutVolume = array.get(mrBreakoutVolume, stateIndex)
                 string breakoutContext = not na(storedBreakoutVolume) ?
                      "\nBreakout volume: " + str.tostring(storedBreakoutVolume, "#.##") + "x" :
                      "\nBreakout: reconstructed from completed Monthly history"
-                alert(
-                     syminfo.tickerid + " approaching " + structureName + " retest support" +
-                     "\nLive price: " + str.tostring(close, format.mintick) +
-                     "\nRetest support: " + str.tostring(resistance, format.mintick) +
-                     "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
-                     breakoutContext +
-                     "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
-                     alert.freq_all)
+                if f_shouldSendDailyAlert("MR_RETEST", resistance)
+                    mrRetestEvent := true
+                    alert(
+                         syminfo.tickerid + " approaching " + structureName + " retest support" +
+                         "\nLive price: " + str.tostring(close, format.mintick) +
+                         "\nRetest support: " + str.tostring(resistance, format.mintick) +
+                         "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
+                         breakoutContext +
+                         "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
+                         alert.freq_all)
 
             if retestIsActive and close < invalidationBoundary
                 array.set(mrRetestActive, stateIndex, false)

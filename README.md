@@ -122,6 +122,13 @@ displayed nor alerted, keeping chart output and alert behavior consistent.
 Alerts evaluate live intraday price movement and can include pre-market and
 post-market data when the TradingView alert is configured for Extended hours.
 
+Every exact alert identity is limited to one notification per exchange trading
+date. Identity consists of the symbol, event type, and underlying zone center.
+For example, repeated `AAPL approaching MR1` triggers at the same resistance are
+suppressed for the rest of that day, but an AAPL breakout, a different zone, or
+another symbol remains independent. The same alert can fire once again on the
+next day if its normal crossing and rearm conditions occur again.
+
 ### Support alerts
 
 - **Approaching support:** falling price crosses the upper approach boundary.
