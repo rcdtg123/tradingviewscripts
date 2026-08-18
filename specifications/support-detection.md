@@ -33,6 +33,12 @@ scope is exclusively Monthly market structure.
 - Calculate Daily ATR(14) as a percentage of Daily close.
 - Smooth Daily ATR% over 50 completed Daily bars.
 - Use only confirmed Daily values.
+- On intraday and Daily charts, use the confirmed Daily `request.security()`
+  value. On charts above 1D, use `request.security_lower_tf()` and select the
+  last ordered Daily intrabar of the same `[1]`-offset expression.
+- The resulting ATR, ATR%, cluster width, approach width, rearm distance, and
+  breakout distance must be identical for the same symbol and inputs regardless
+  of whether the chart is intraday, Daily, Weekly, or Monthly.
 - Maximum total low-cluster width defaults to `2.0 * smoothed Daily ATR%`.
 - The multiplier describes total width, not a plus/minus width.
 

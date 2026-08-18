@@ -144,6 +144,18 @@ accepting these dates or prices as exact.
 
 ## TradingView validation sequence
 
+### Chart-timeframe normalization
+
+1. Load the same symbol and indicator inputs on 1D, 1W, and 1M charts.
+2. Confirm all M, R, and MR centers and zone boundaries are identical across
+   the three chart intervals.
+3. For PLAB, confirmed Daily ATR% near 7.2902% produces a 14.5804% cluster-width
+   limit. Monthly-low clusters centered at 27.58 and 24.73 remain separate on
+   every chart interval.
+4. Never reproduce the former 1M-only merge into M1 25.32, which resulted from
+   sampling the first Daily intrabar of the Monthly chart bar at an 8.0741%
+   smoothed ATR% and 16.1482% cluster-width limit.
+
 1. Paste the Pine source into a new Pine Editor indicator.
 2. Compile using Pine Script v6.
 3. Add it to a standard candlestick chart, initially on the Daily interval.

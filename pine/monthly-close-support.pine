@@ -473,11 +473,32 @@ f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>
      [high[1], low[1], time_close[1]],
      lookahead = barmerge.lookahead_on)
 
-[confirmedDailyAtr, confirmedDailyAtrPercent] = request.security(
+[standardConfirmedDailyAtr, standardConfirmedDailyAtrPercent] = request.security(
      syminfo.tickerid,
      "1D",
      [ta.atr(atrLength)[1], ta.sma(ta.atr(atrLength) / close * 100.0, atrSmoothing)[1]],
      lookahead = barmerge.lookahead_on)
+
+// request.security() returns only one intrabar when its requested timeframe is
+// below the chart timeframe. With lookahead_on that can be the first Daily bar
+// of a historical Weekly/Monthly bar, making volatility and clusters depend on
+// the chart interval. request.security_lower_tf() returns ordered Daily values;
+// the last [1]-offset value is the same previous completed Daily calculation
+// used on intraday and Daily charts. Invalid LTF requests are ignored when the
+// chart itself is intraday, where the standard request is already appropriate.
+[dailyAtrIntrabars, dailyAtrPercentIntrabars] = request.security_lower_tf(
+     syminfo.tickerid,
+     "1D",
+     [ta.atr(atrLength)[1], ta.sma(ta.atr(atrLength) / close * 100.0, atrSmoothing)[1]],
+     ignore_invalid_timeframe = true)
+
+bool chartIsAboveDaily = timeframe.in_seconds() > timeframe.in_seconds("1D")
+float confirmedDailyAtr = standardConfirmedDailyAtr
+float confirmedDailyAtrPercent = standardConfirmedDailyAtrPercent
+int dailyIntrabarCount = array.size(dailyAtrIntrabars)
+if chartIsAboveDaily and dailyIntrabarCount > 0
+    confirmedDailyAtr := array.get(dailyAtrIntrabars, dailyIntrabarCount - 1)
+    confirmedDailyAtrPercent := array.get(dailyAtrPercentIntrabars, dailyIntrabarCount - 1)
 
 // The extended-session ticker makes both the current cumulative Daily volume
 // and the historical baseline use the same session definition. On instruments

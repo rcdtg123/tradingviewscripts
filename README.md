@@ -69,6 +69,10 @@ ATR data:
 - Approach width: `0.75 × smoothed Daily ATR%`.
 - Minimum approach width: 1%.
 - Maximum approach width: 7%.
+- The confirmed Daily ATR source is normalized across intraday, Daily, Weekly,
+  and Monthly charts. Charts above 1D use ordered Daily intrabars and select the
+  latest `[1]`-offset value, preventing the chart interval from changing
+  cluster membership.
 
 Support approach zones extend only upward from their median support level; they
 do not add padding below the actual Monthly low. Resistance zones mirror this
@@ -195,8 +199,9 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
 2. Copy the complete contents of
    [`pine/monthly-close-support.pine`](pine/monthly-close-support.pine).
 3. Replace the editor contents, save the script, and select **Add to chart**.
-4. Review the indicator Inputs and keep the chart on a Daily or intraday
-   timeframe for live alert evaluation. Monthly levels are requested internally.
+4. Review the indicator Inputs. Monthly structure and confirmed Daily
+   volatility are requested internally, so detected levels remain consistent
+   on intraday, Daily, Weekly, and Monthly charts.
 5. Create an alert using the indicator's desired condition. Use Extended hours
    when pre-market and post-market monitoring is required.
 6. Recreate alerts whenever the script or relevant inputs change.
@@ -207,8 +212,9 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
   describes the detailed detection, ranking, display, and alert contract.
 - [`test-cases/validation-cases.md`](test-cases/validation-cases.md) contains the
   manual TradingView validation scenarios.
-- [`test-cases/meta-replay.mjs`](test-cases/meta-replay.mjs) reproduces key
-  Monthly-zone and price-path behavior against exported META data.
+- [`test-cases/meta-replay.mjs`](test-cases/meta-replay.mjs) reproduces key META
+  price-path behavior plus SNPS resistance and PLAB timeframe-normalization
+  regressions against exported TradingView data.
 
 ## Architecture
 

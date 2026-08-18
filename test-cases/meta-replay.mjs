@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 const monthlyPath = "/Users/dhavader/Downloads/BATS_META, 1M.csv";
 const dailyPath = "/Users/dhavader/Downloads/BATS_META, 1D.csv";
+const plabMonthlyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1M.csv";
+const plabDailyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1D.csv";
 
 function readCsv(path) {
   const [header, ...lines] = fs.readFileSync(path, "utf8").trim().split(/\r?\n/);
@@ -304,6 +306,39 @@ assert.deepEqual(
   [464.46, 548.12, 585.665, 624.8015],
 );
 assert.equal(snpsResistanceSurvivors[2].highConvictionResistance, true);
+
+const plabDaily = readCsv(plabDailyPath);
+const plabTrueRange = plabDaily.map((bar, index) => index === 0
+  ? bar.high - bar.low
+  : Math.max(
+    bar.high - bar.low,
+    Math.abs(bar.high - plabDaily[index - 1].close),
+    Math.abs(bar.low - plabDaily[index - 1].close),
+  ));
+const plabAtr = rma(plabTrueRange, 14);
+const plabAtrPercent = sma(
+  plabAtr.map((value, index) => value / plabDaily[index].close * 100),
+  50,
+);
+const plabLatestConfirmedIndex = plabDaily.length - 2;
+const plabJuly31Index = plabDaily.findIndex((bar) =>
+  new Date(bar.time * 1000).toISOString().slice(0, 10) === "2026-07-31");
+const plabMonthly = readCsv(plabMonthlyPath).slice(0, -1).slice(-120);
+
+function plabSupportCenters(dailyAtrPercent) {
+  return detect(
+    plabMonthly.map((bar) => ({ price: bar.low, timestamp: bar.time })),
+    dailyAtrPercent * 2,
+    2,
+  ).filter((zone) => zone.center < 31.35)
+    .sort((first, second) => second.center - first.center)
+    .map((zone) => Number(zone.center.toFixed(4)));
+}
+
+const plabNormalizedCenters = plabSupportCenters(plabAtrPercent[plabLatestConfirmedIndex]);
+const plabHistoricallySampledMonthlyCenters = plabSupportCenters(plabAtrPercent[plabJuly31Index]);
+assert.deepEqual(plabNormalizedCenters.slice(0, 2), [27.58, 24.73]);
+assert.equal(plabHistoricallySampledMonthlyCenters[0], 25.32);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,
