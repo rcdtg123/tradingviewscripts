@@ -66,6 +66,12 @@ overlaps a Retest-support zone, the Retest is removed so the same region is not
 drawn or alerted twice. A Retest is also invalidated if price falls sufficiently
 below its center.
 
+The green approach band is display-only. Retest notification occurs only when
+falling live price reaches or crosses the exact former-resistance center shown
+by `RT1`, `RT2`, and so on. Entering the upper portion of the green band does
+not alert, and a new Daily bar that gaps completely below the center is not
+treated as an exact touch.
+
 ## Volatility-adaptive zones
 
 The indicator normalizes clustering and approach zones using confirmed Daily
@@ -171,7 +177,8 @@ bars.
 - Extended-session cumulative Daily volume is used so earnings-related moves
   outside regular market hours can qualify.
 - A qualified `MR` breakout activates the Retest-support workflow.
-- A later downward approach into active Retest Support continues to alert.
+- A later downward reach of the exact displayed RT center alerts. Merely entering
+  the upper Retest approach band does not alert.
 
 ### Alert strength notation
 

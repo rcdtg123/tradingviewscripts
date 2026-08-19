@@ -17,8 +17,8 @@ scope is exclusively Monthly market structure.
 - A Monthly-high breakout requires price at `MR + 0.25 * Daily ATR` and at least
   2x current extended-session Daily volume versus the previous 20-Day average.
   Send one notification and report the actual multiple.
-- Convert a qualified MR breakout into green retest support. Alert
-  once on a later downward approach and invalidate below
+- Convert a qualified MR breakout into green retest support. Alert once when a
+  later downward move reaches the exact displayed RT center and invalidate below
   `MR - 0.25 * Daily ATR`.
 - Reconstruct a historical retest when a completed-high cluster is at least
   `3xM` and live price is already above `MR + 0.25 * Daily ATR`, even if the
@@ -182,8 +182,9 @@ scope is exclusively Monthly market structure.
 - Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
   Continue detecting and latching their upward approach internally so both
   volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
-- Continue sending the separate downward-approach alert for active Retest
-  Support.
+- Do not alert on entry into the upper Retest approach band. Send the separate
+  Retest alert only when falling price reaches the exact center of a displayed
+  `RT1`, `RT2`, and so on; hidden Retest zones cannot alert.
 - Once approached, latch the level as resistance so crossing above its center
   does not prematurely reclassify it as support.
 - Breakout conviction is `resistance + 0.25 * confirmed Daily ATR` by default.

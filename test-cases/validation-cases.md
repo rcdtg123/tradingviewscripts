@@ -123,8 +123,9 @@ accepting these dates or prices as exact.
    approach notification. Suppressed R mechanisms emit no duplicates.
 5. At `MR + 0.25 * Daily ATR` and actual extended-session volume of 5.00x,
    emit one breakout notification reporting 5.00x—not separate 2x and 4x alerts.
-6. After breakout, replace MR with green retest support. A later
-   downward entry through its upper band emits one retest alert.
+6. After breakout, replace MR with green retest support. Downward entry through
+   its upper band emits no alert. Reaching the exact displayed RT center emits
+   one `RT_REACHED` alert.
 7. Invalidate retest support below `MR - 0.25 * Daily ATR`; the old structural
    mechanisms can classify the region again on later updates.
 8. A hidden MR outside the nearest-five shortlist cannot begin an approach or
@@ -151,7 +152,8 @@ accepting these dates or prices as exact.
     zone, show and alert only the established M support and retire the Retest.
 15. Never send `R_APPROACH` for R1–R3 or `MR_APPROACH` for MR1–MR5. Retain both
     internal approach latches so R/MR volume-confirmed breakouts still qualify.
-    Continue sending the distinct downward Retest-support approach alert.
+    Continue sending the distinct Retest alert only at the exact displayed RT
+    center, not at its upper approach boundary.
 16. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
     not gap through either boundary, but the Daily low 357.6101 proves downward

@@ -67,7 +67,7 @@ string GROUP_ALERTS = "3. Alerts"
 bool enableApproachAlerts = input.bool(true, "Alert when live price enters approach zone", group = GROUP_ALERTS)
 bool enableReachedAlerts = input.bool(true, "Alert when live price reaches support", group = GROUP_ALERTS)
 bool enableBreakAlerts = input.bool(true, "Alert when live price breaks support", group = GROUP_ALERTS)
-bool enableRetestApproachAlerts = input.bool(true, "Alert when live price approaches retest support", group = GROUP_ALERTS)
+bool enableRetestReachedAlerts = input.bool(true, "Alert when live price reaches retest support", group = GROUP_ALERTS)
 bool enableResistanceBreakoutAlerts = input.bool(true, "Alert on volume-confirmed resistance breakout", group = GROUP_ALERTS)
 float rearmDistanceAtr = input.float(0.25, "Rearm distance × Daily ATR", 0.0, 2.0, 0.05, group = GROUP_ALERTS)
 float breakoutConvictionAtr = input.float(0.25, "Breakout conviction × Daily ATR", 0.0, 3.0, 0.05, group = GROUP_ALERTS)
@@ -1109,7 +1109,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             float approachBoundary = f_resistanceLow(mrZone, confirmedDailyAtrPercent)
             float convictionBoundary = resistance + breakoutConvictionAtr * confirmedDailyAtr
             float rearmBoundary = approachBoundary - rearmDistance
-            float retestBoundary = f_alertHigh(mrZone, confirmedDailyAtrPercent)
             float invalidationBoundary = resistance - rearmDistance
 
             bool isVisibleMr = false
@@ -1159,26 +1158,34 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                          alert.freq_all)
 
             bool retestIsActive = array.get(mrRetestActive, stateIndex)
-            bool crossedRetestDown =
-                 retestIsActive and not na(previousLivePrice) and
-                 previousLivePrice > retestBoundary and
-                 close <= retestBoundary and close >= resistance
-            if enableRetestApproachAlerts and crossedRetestDown and
+            int visibleRetestRank = 0
+            int visibleRetestCount = array.size(retestZones)
+            if visibleRetestCount > 0
+                for visibleRetestIndex = 0 to visibleRetestCount - 1
+                    Zone visibleRetest = array.get(retestZones, visibleRetestIndex)
+                    if math.abs(visibleRetest.center - resistance) <= syminfo.mintick
+                        visibleRetestRank := visibleRetestIndex + 1
+                        break
+            bool liveReachedRetest = not na(previousLivePrice) and previousLivePrice > resistance and close <= resistance and (not barstate.isnew or currentExtendedDailyOpen >= resistance)
+            bool reachedVisibleRetest =
+                 retestIsActive and visibleRetestRank > 0 and
+                 liveReachedRetest
+            if enableRetestReachedAlerts and reachedVisibleRetest and
                  not array.get(mrRetestSent, stateIndex)
                 array.set(mrRetestSent, stateIndex, true)
                 float storedBreakoutVolume = array.get(mrBreakoutVolume, stateIndex)
                 string breakoutContext = not na(storedBreakoutVolume) ?
                      "\nBreakout volume: " + str.tostring(storedBreakoutVolume, "#.##") + "x" :
                      "\nBreakout: reconstructed from completed Monthly history"
-                if f_shouldSendDailyAlert("MR_RETEST", resistance)
+                if f_shouldSendDailyAlert("RT_REACHED", resistance)
                     mrRetestEvent := true
                     alert(
-                         syminfo.tickerid + " approaching " + structureName + " retest support" +
+                         syminfo.tickerid + " reached RT" + str.tostring(visibleRetestRank) + " Retest support" +
                          "\nLive price: " + str.tostring(close, format.mintick) +
                          "\nRetest support: " + str.tostring(resistance, format.mintick) +
-                         "\nApproach boundary: " + str.tostring(retestBoundary, format.mintick) +
                          breakoutContext +
-                         "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
+                         "\nStrength: " + f_strengthLabel(mrZone) +
+                         "\nRole: Retest support",
                          alert.freq_all)
 
             if retestIsActive and close < invalidationBoundary
@@ -1195,4 +1202,4 @@ alertcondition(reachedEvent, "Reached Monthly support", "{{exchange}}:{{ticker}}
 alertcondition(breakEvent, "Broke below Monthly support", "{{exchange}}:{{ticker}} broke below Monthly support at {{close}}")
 alertcondition(resistanceBreakoutEvent, "Volume-confirmed Monthly resistance breakout", "{{exchange}}:{{ticker}} broke Monthly resistance at {{close}}")
 alertcondition(mrBreakoutEvent, "Monthly-high resistance breakout", "{{exchange}}:{{ticker}} broke Monthly-high resistance at {{close}}")
-alertcondition(mrRetestEvent, "Approaching resistance retest support", "{{exchange}}:{{ticker}} is approaching resistance retest support at {{close}}")
+alertcondition(mrRetestEvent, "Reached resistance retest support", "{{exchange}}:{{ticker}} reached resistance retest support at {{close}}")

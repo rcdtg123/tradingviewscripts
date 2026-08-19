@@ -9,6 +9,9 @@ assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_APPROACH"'), false)
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("R_APPROACH"'), false);
 assert.equal(pineSource.includes('alertcondition(mrApproachEvent'), false);
 assert.equal(pineSource.includes('alertcondition(resistanceApproachEvent'), false);
+assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_RETEST"'), false);
+assert.equal(pineSource.includes('f_shouldSendDailyAlert("RT_REACHED"'), true);
+assert.equal(pineSource.includes('" approaching " + structureName + " retest support"'), false);
 assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
 assert.equal(pineSource.includes("if array.get(mrLatched, stateIndex) and\n"), false);
@@ -402,6 +405,23 @@ function crossedDown({ previousLive, live, priorClose, open, low }, level) {
   const rangeCross = open > level && low <= level;
   return liveCross || gapCross || rangeCross;
 }
+
+function reachedRetest({ active = true, visible = true, previousLive, live, open, isNew = false }, center) {
+  const liveReach = Number.isFinite(previousLive) && previousLive > center && live <= center &&
+    (!isNew || open >= center);
+  return active && visible && liveReach;
+}
+
+assert.equal(reachedRetest(
+  { previousLive: 221, live: 220, open: 221 }, 214.94), false);
+assert.equal(reachedRetest(
+  { previousLive: 216, live: 214.94, open: 216 }, 214.94), true);
+assert.equal(reachedRetest(
+  { previousLive: 221, live: 210, open: 210, isNew: true }, 214.94), false);
+assert.equal(reachedRetest(
+  { previousLive: 221, live: 214.94, open: 214.94, isNew: true }, 214.94), true);
+assert.equal(reachedRetest(
+  { visible: false, previousLive: 216, live: 214.94, open: 216 }, 214.94), false);
 
 assert.equal(crossedDown(
   { previousLive: 380, live: 370, priorClose: 380, open: 380, low: 370 }, 371), true);
