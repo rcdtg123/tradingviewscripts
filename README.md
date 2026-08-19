@@ -125,10 +125,10 @@ post-market data when the TradingView alert is configured for Extended hours.
 
 Every exact alert identity is limited to one notification per exchange trading
 date. Identity consists of the symbol, event type, and underlying zone center.
-For example, repeated `AAPL approaching R1` triggers at the same resistance are
-suppressed for the rest of that day, but an AAPL breakout, a different zone, or
-another symbol remains independent. The same alert can fire once again on the
-next day if its normal crossing and rearm conditions occur again.
+For example, repeated support events at the same center are suppressed for the
+rest of that day, but a breakout, a different zone, or another symbol remains
+independent. The same alert can fire once again on the next day if its normal
+crossing and rearm conditions occur again.
 
 ### Support alerts
 
@@ -150,10 +150,9 @@ Approach, reached, and break remain distinct event identities.
 
 ### Resistance alerts
 
-- **Approaching resistance:** rising price enters a displayed former-support
-  `R` zone from below.
-- Displayed `MR1`–`MR5` zones do not emit approach notifications. Their entry
-  crossing is retained internally to qualify the existing MR breakout cycle.
+- Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
+  notifications. Their entry crossings remain tracked internally because the
+  existing volume-confirmed breakout workflows depend on those latches.
 - Falling into a resistance zone from above does not trigger the approach
   alert.
 - The indicator latches an approached level as resistance during its breakout
@@ -172,6 +171,7 @@ bars.
 - Extended-session cumulative Daily volume is used so earnings-related moves
   outside regular market hours can qualify.
 - A qualified `MR` breakout activates the Retest-support workflow.
+- A later downward approach into active Retest Support continues to alert.
 
 ### Alert strength notation
 

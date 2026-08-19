@@ -179,12 +179,11 @@ scope is exclusively Monthly market structure.
 
 ## Resistance and breakout alerts
 
-- Send a resistance-approach alert only when live price rises into the lower
-  edge of a displayed former-support `R` band from below. Falling into the band
-  from above cannot produce this alert.
-- Do not send approach alerts for `MR1`–`MR5`. Continue detecting and latching
-  their upward approach internally so volume-confirmed MR breakout and Retest
-  behavior remain unchanged.
+- Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
+  Continue detecting and latching their upward approach internally so both
+  volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
+- Continue sending the separate downward-approach alert for active Retest
+  Support.
 - Once approached, latch the level as resistance so crossing above its center
   does not prematurely reclassify it as support.
 - Breakout conviction is `resistance + 0.25 * confirmed Daily ATR` by default.

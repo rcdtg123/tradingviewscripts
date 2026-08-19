@@ -149,10 +149,9 @@ accepting these dates or prices as exact.
     after the breakout. Do not reconstruct every older Monthly-high cluster.
 14. If a displayed Monthly-low support with at least `3xM` overlaps that Retest
     zone, show and alert only the established M support and retire the Retest.
-15. If AAPL crosses upward into R1 at 316.20 twice on the same exchange date,
-    send `R_APPROACH|316.20` only on the first crossing. A support, breakout, or
-    different resistance alert remains eligible that day. Never send
-    `MR_APPROACH` for MR1–MR5, while retaining their internal latch.
+15. Never send `R_APPROACH` for R1–R3 or `MR_APPROACH` for MR1–MR5. Retain both
+    internal approach latches so R/MR volume-confirmed breakouts still qualify.
+    Continue sending the distinct downward Retest-support approach alert.
 16. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
     not gap through either boundary, but the Daily low 357.6101 proves downward
