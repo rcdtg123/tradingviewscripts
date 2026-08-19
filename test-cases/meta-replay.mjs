@@ -11,6 +11,7 @@ assert.equal(pineSource.includes('alertcondition(mrApproachEvent'), false);
 assert.equal(pineSource.includes('alertcondition(resistanceApproachEvent'), false);
 assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
+assert.equal(pineSource.includes("if array.get(mrLatched, stateIndex) and\n"), false);
 
 const monthlyPath = "/Users/dhavader/Downloads/BATS_META, 1M.csv";
 const dailyPath = "/Users/dhavader/Downloads/BATS_META, 1D.csv";

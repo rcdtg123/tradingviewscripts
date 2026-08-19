@@ -1127,8 +1127,8 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             if crossedApproachUp
                 array.set(mrLatched, stateIndex, true)
 
-            if array.get(mrLatched, stateIndex) and
-                not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
+            bool shouldRearmMr = array.get(mrLatched, stateIndex) and not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
+            if shouldRearmMr
                 array.set(mrLatched, stateIndex, false)
                 array.set(mrBreakoutSent, stateIndex, false)
 
