@@ -553,7 +553,6 @@ varip float previousLivePrice = na
 varip array<float> latchedResistanceCenters = array.new<float>()
 varip array<float> mrStateCenters = array.new<float>()
 varip array<bool> mrLatched = array.new<bool>()
-varip array<bool> mrApproachSent = array.new<bool>()
 varip array<bool> mrBreakoutSent = array.new<bool>()
 varip array<bool> mrRetestActive = array.new<bool>()
 varip array<bool> mrHistoricalRetestSeeded = array.new<bool>()
@@ -572,7 +571,6 @@ f_mrStateIndex(float center) =>
     if result == -1
         array.push(mrStateCenters, center)
         array.push(mrLatched, false)
-        array.push(mrApproachSent, false)
         array.push(mrBreakoutSent, false)
         array.push(mrRetestActive, false)
         array.push(mrHistoricalRetestSeeded, false)
@@ -915,7 +913,6 @@ bool reachedEvent = false
 bool breakEvent = false
 bool resistanceApproachEvent = false
 bool resistanceBreakoutEvent = false
-bool mrApproachEvent = false
 bool mrBreakoutEvent = false
 bool mrRetestEvent = false
 
@@ -1151,30 +1148,14 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 array.set(mrLatched, stateIndex, true)
 
             if array.get(mrLatched, stateIndex) and
-                 not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
+                not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
                 array.set(mrLatched, stateIndex, false)
-                array.set(mrApproachSent, stateIndex, false)
                 array.set(mrBreakoutSent, stateIndex, false)
 
             int storedRank = array.get(mrOriginalRank, stateIndex)
             int mrRank = storedRank > 0 ? storedRank : 1
             string structureName = "MR" + str.tostring(mrRank)
             string mrRole = f_isHighConvictionResistance(mrZone) ? "\nRole: High-conviction resistance" : "\nRole: Actionable resistance"
-
-            bool shouldApproach =
-                 enableResistanceApproachAlerts and crossedApproachUp and
-                 not array.get(mrApproachSent, stateIndex)
-            if shouldApproach
-                array.set(mrApproachSent, stateIndex, true)
-                if f_shouldSendDailyAlert("MR_APPROACH", resistance)
-                    mrApproachEvent := true
-                    alert(
-                         syminfo.tickerid + " approaching " + structureName + " Monthly resistance" +
-                         "\nLive price: " + str.tostring(close, format.mintick) +
-                         "\nResistance: " + str.tostring(resistance, format.mintick) +
-                         "\nApproach boundary: " + str.tostring(approachBoundary, format.mintick) +
-                         "\nStrength: " + f_strengthLabel(mrZone) + mrRole,
-                         alert.freq_all)
 
             bool breakoutQualified =
                  enableResistanceBreakoutAlerts and array.get(mrLatched, stateIndex) and
@@ -1223,7 +1204,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             if retestIsActive and close < invalidationBoundary
                 array.set(mrRetestActive, stateIndex, false)
                 array.set(mrLatched, stateIndex, false)
-                array.set(mrApproachSent, stateIndex, false)
                 array.set(mrBreakoutSent, stateIndex, false)
                 array.set(mrRetestSent, stateIndex, false)
                 array.set(mrBreakoutVolume, stateIndex, na)
@@ -1235,6 +1215,5 @@ alertcondition(reachedEvent, "Reached Monthly support", "{{exchange}}:{{ticker}}
 alertcondition(breakEvent, "Broke below Monthly support", "{{exchange}}:{{ticker}} broke below Monthly support at {{close}}")
 alertcondition(resistanceApproachEvent, "Approaching Monthly resistance", "{{exchange}}:{{ticker}} is approaching Monthly resistance at {{close}}")
 alertcondition(resistanceBreakoutEvent, "Volume-confirmed Monthly resistance breakout", "{{exchange}}:{{ticker}} broke Monthly resistance at {{close}}")
-alertcondition(mrApproachEvent, "Approaching Monthly-high resistance", "{{exchange}}:{{ticker}} is approaching Monthly-high resistance at {{close}}")
 alertcondition(mrBreakoutEvent, "Monthly-high resistance breakout", "{{exchange}}:{{ticker}} broke Monthly-high resistance at {{close}}")
 alertcondition(mrRetestEvent, "Approaching resistance retest support", "{{exchange}}:{{ticker}} is approaching resistance retest support at {{close}}")

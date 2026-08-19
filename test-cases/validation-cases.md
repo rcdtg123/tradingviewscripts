@@ -119,8 +119,8 @@ accepting these dates or prices as exact.
 3. After same-family pairwise decluttering, compare only overlapping cross-family
    R/MR candidates within 10%. Display the higher-conviction member and prefer
    MR only on an exact strength tie.
-4. Rising entry into the surviving MR emits one approach alert; suppressed R
-   mechanisms emit no duplicates.
+4. Rising entry into the surviving MR latches it internally but emits no
+   approach notification. Suppressed R mechanisms emit no duplicates.
 5. At `MR + 0.25 * Daily ATR` and actual extended-session volume of 5.00x,
    emit one breakout notification reporting 5.00x—not separate 2x and 4x alerts.
 6. After breakout, replace MR with green retest support. A later
@@ -149,11 +149,10 @@ accepting these dates or prices as exact.
     after the breakout. Do not reconstruct every older Monthly-high cluster.
 14. If a displayed Monthly-low support with at least `3xM` overlaps that Retest
     zone, show and alert only the established M support and retire the Retest.
-15. If AAPL crosses upward into MR1 at 316.20 twice on the same exchange date,
-    send `MR_APPROACH|316.20` only on the first crossing. A support, breakout,
-    or different resistance alert remains eligible that day. After a normal
-    rearm and a fresh crossing on the next exchange date, allow one new MR1
-    approach notification.
+15. If AAPL crosses upward into R1 at 316.20 twice on the same exchange date,
+    send `R_APPROACH|316.20` only on the first crossing. A support, breakout, or
+    different resistance alert remains eligible that day. Never send
+    `MR_APPROACH` for MR1–MR5, while retaining their internal latch.
 16. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
     not gap through either boundary, but the Daily low 357.6101 proves downward

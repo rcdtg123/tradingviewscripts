@@ -1,6 +1,14 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 
+const pineSource = fs.readFileSync(
+  new URL("../pine/monthly-close-support.pine", import.meta.url),
+  "utf8",
+);
+assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_APPROACH"'), false);
+assert.equal(pineSource.includes('alertcondition(mrApproachEvent'), false);
+assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
+
 const monthlyPath = "/Users/dhavader/Downloads/BATS_META, 1M.csv";
 const dailyPath = "/Users/dhavader/Downloads/BATS_META, 1D.csv";
 const plabMonthlyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1M.csv";
@@ -379,11 +387,11 @@ function shouldSendDailyAlert(symbol, eventType, center, date) {
   dailyAlertDates.set(key, date);
   return true;
 }
-assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260818), true);
-assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260818), false);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "R_APPROACH", 316.2, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "R_APPROACH", 316.2, 20260818), false);
 assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_BREAKOUT", 316.2, 20260818), true);
-assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 320.0, 20260818), true);
-assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260819), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "R_APPROACH", 320.0, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AAPL", "R_APPROACH", 316.2, 20260819), true);
 assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), true);
 assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_REACHED", 358.445, 20260819), true);
 assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), false);
