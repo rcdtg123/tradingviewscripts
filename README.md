@@ -73,7 +73,8 @@ ATR data:
 
 - Daily ATR length: 14 bars.
 - Daily ATR-percent smoothing: 50 bars.
-- Maximum historical cluster width: `2.0 × smoothed Daily ATR%` by default.
+- Maximum Monthly-low cluster width: `2.0 × smoothed Daily ATR%` by default.
+- Maximum Monthly-high MR cluster width: `1.0 × smoothed Daily ATR%` by default.
 - Approach width: `0.75 × smoothed Daily ATR%`.
 - Minimum approach width: 1%.
 - Maximum approach width: 7%.
@@ -199,7 +200,8 @@ old alert and create it again so the latest logic is used.
 | Completed Monthly candles | 120 |
 | Daily ATR length | 14 |
 | Daily ATR% smoothing | 50 |
-| Cluster width multiplier | 2.0 |
+| Monthly-low cluster width multiplier | 2.0 |
+| Monthly-high MR cluster width multiplier | 1.0 |
 | Approach ATR% multiplier | 0.75 |
 | Minimum approach width | 1% |
 | Maximum approach width | 7% |

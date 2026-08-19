@@ -55,6 +55,9 @@ scope is exclusively Monthly market structure.
   breakout distance must be identical for the same symbol and inputs regardless
   of whether the chart is intraday, Daily, Weekly, or Monthly.
 - Maximum total low-cluster width defaults to `2.0 * smoothed Daily ATR%`.
+- Maximum total Monthly-high MR cluster width defaults to
+  `1.0 * smoothed Daily ATR%`. This remains volatility-adjusted but prevents
+  the broader support tolerance from joining widely separated Monthly highs.
 - The multiplier describes total width, not a plus/minus width.
 
 ## Clustering

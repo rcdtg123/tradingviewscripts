@@ -49,6 +49,7 @@ int monthlyLookback = input.int(120, "Completed Monthly candles", 24, 240, group
 int atrLength = input.int(14, "Daily ATR length", 2, 100, group = GROUP_DATA)
 int atrSmoothing = input.int(50, "Daily ATR% smoothing", 5, 250, group = GROUP_DATA)
 float clusterMultiplier = input.float(2.0, "Maximum cluster width × Daily ATR%", 0.25, 10.0, 0.25, group = GROUP_DATA)
+float monthlyHighClusterMultiplier = input.float(1.0, "Monthly-high MR cluster width × Daily ATR%", 0.25, 10.0, 0.25, group = GROUP_DATA)
 float approachAtrPercentMultiplier = input.float(0.75, "Approach width × Daily ATR%", 0.0, 5.0, 0.05, group = GROUP_DATA)
 float minimumApproachPercent = input.float(1.0, "Minimum approach width %", 0.0, 10.0, 0.25, group = GROUP_DATA)
 float maximumApproachPercent = input.float(7.0, "Maximum approach width %", 0.25, 25.0, 0.25, group = GROUP_DATA)
@@ -531,14 +532,15 @@ if newConfirmedMonth and not na(confirmedMonthlyLow) and not na(confirmedMonthly
         array.shift(monthlyHighObservations)
 
 float maximumClusterWidthPercent = confirmedDailyAtrPercent * clusterMultiplier
+float maximumMonthlyHighClusterWidthPercent = confirmedDailyAtrPercent * monthlyHighClusterMultiplier
 array<Zone> detectedZones = array.new<Zone>()
 array<Zone> detectedMonthlyHighZones = array.new<Zone>()
 if barstate.islast and array.size(monthlyLowObservations) >= minimumLows and not na(maximumClusterWidthPercent)
     detectedZones := f_sortStrongestFirst(
          f_detectZones(monthlyLowObservations, maximumClusterWidthPercent, minimumLows))
-if barstate.islast and array.size(monthlyHighObservations) >= minimumMonthlyHighs and not na(maximumClusterWidthPercent)
+if barstate.islast and array.size(monthlyHighObservations) >= minimumMonthlyHighs and not na(maximumMonthlyHighClusterWidthPercent)
     detectedMonthlyHighZones := f_sortStrongestFirst(
-         f_detectZones(monthlyHighObservations, maximumClusterWidthPercent, minimumMonthlyHighs))
+         f_detectZones(monthlyHighObservations, maximumMonthlyHighClusterWidthPercent, minimumMonthlyHighs))
 
 //──────────────────────────────────────────────────────────────────────────────
 // Classification: keep every detected zone, expose only support/current zones

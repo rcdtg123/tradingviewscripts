@@ -9,6 +9,8 @@ const anetMonthlyPath = "/Users/dhavader/Downloads/BATS_ANET, 1M.csv";
 const anetDailyPath = "/Users/dhavader/Downloads/BATS_ANET, 1D.csv";
 const avgoMonthlyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1M.csv";
 const avgoDailyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1D.csv";
+const sapMonthlyPath = "/Users/dhavader/Downloads/BATS_SAP, 1M.csv";
+const sapDailyPath = "/Users/dhavader/Downloads/BATS_SAP, 1D.csv";
 
 function readCsv(path) {
   const [header, ...lines] = fs.readFileSync(path, "utf8").trim().split(/\r?\n/);
@@ -179,7 +181,7 @@ const approachPercent = Math.max(1, Math.min(7, confirmedAtrPercent * 0.75));
 
 const monthly = readCsv(monthlyPath).slice(0, -1).slice(-120);
 const lowZones = detect(monthly.map((bar) => ({ price: bar.low, timestamp: bar.time })), clusterWidth, 2);
-const highZones = detect(monthly.map((bar) => ({ price: bar.high, timestamp: bar.time })), clusterWidth, 2);
+const highZones = detect(monthly.map((bar) => ({ price: bar.high, timestamp: bar.time })), confirmedAtrPercent, 2);
 
 function supportList(price, previous) {
   const reference = Math.max(price, previous ?? price);
@@ -443,6 +445,51 @@ assert.equal(crossedDown({
   open: avgoToday.open,
   low: avgoToday.low,
 }, avgoM1.center), true);
+
+const sapDaily = readCsv(sapDailyPath);
+const sapTrueRange = sapDaily.map((bar, index) => index === 0
+  ? bar.high - bar.low
+  : Math.max(
+    bar.high - bar.low,
+    Math.abs(bar.high - sapDaily[index - 1].close),
+    Math.abs(bar.low - sapDaily[index - 1].close),
+  ));
+const sapAtr = rma(sapTrueRange, 14);
+const sapConfirmedIndex = sapDaily.length - 2;
+const sapConfirmedAtr = sapAtr[sapConfirmedIndex];
+const sapConfirmedAtrPercent = sma(
+  sapAtr.map((value, index) => value / sapDaily[index].close * 100),
+  50,
+)[sapConfirmedIndex];
+const sapMonthly = readCsv(sapMonthlyPath).slice(0, -1).slice(-120);
+const sapHighZones = detect(
+  sapMonthly.map((bar) => ({ price: bar.high, timestamp: bar.time })),
+  sapConfirmedAtrPercent,
+  2,
+);
+const sapLowZones = detect(
+  sapMonthly.map((bar) => ({ price: bar.low, timestamp: bar.time })),
+  sapConfirmedAtrPercent * 2,
+  2,
+);
+const sapPrice = sapDaily.at(-1).close;
+const sapReconstructible = sapHighZones
+  .filter((zone) => zone.touches >= 3 && sapPrice >= zone.center + 0.25 * sapConfirmedAtr)
+  .sort((first, second) => second.center - first.center);
+const sapNearestHistoricalRetest = sapReconstructible[0];
+const sapApproachPercent = Math.max(1, Math.min(7, sapConfirmedAtrPercent * 0.75));
+const sapOverlappingEstablishedSupport = sapLowZones.find((zone) => {
+  if (zone.touches < 3 || zone.center > sapPrice) return false;
+  const retestHigh = sapNearestHistoricalRetest.center * (1 + sapApproachPercent / 100);
+  const supportHigh = zone.center * (1 + sapApproachPercent / 100);
+  return Math.max(sapNearestHistoricalRetest.center, zone.center) <=
+    Math.min(retestHigh, supportHigh);
+});
+assert.equal(Number(sapConfirmedAtrPercent.toFixed(3)), 3.738);
+assert.equal(sapHighZones.some((zone) => Math.abs(zone.center - 214.94) < 0.01 && zone.touches >= 3), false);
+assert.equal(Number(sapNearestHistoricalRetest.center.toFixed(4)), 197.0038);
+assert.equal(sapNearestHistoricalRetest.touches, 4);
+assert.equal(Number(sapOverlappingEstablishedSupport.center.toFixed(2)), 194.93);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,

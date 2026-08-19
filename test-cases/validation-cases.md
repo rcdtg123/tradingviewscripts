@@ -137,7 +137,7 @@ accepting these dates or prices as exact.
     non-transitive pairs, then arbitrate only actual R/MR overlaps.
 11. Every support, resistance, breakout, and retest alert includes strength in
     `NxM` notation matching the survivor's qualifying Monthly candle count.
-12. For SNPS with an 8.2409% cluster-width limit, completed highs around
+12. For SNPS with the tighter Monthly-high MR cluster-width limit, completed highs around
     535.20–556.31 form MR 548.12 (6xM). It must remain visible between MR 464.46
     and the higher resistance destinations; 505.69 must not cascade
     `548.12 -> 505.69 -> 464.46` and remove it.
@@ -163,6 +163,11 @@ accepting these dates or prices as exact.
     current Daily high never returns to M1. Upward movement from below must not
     qualify. Repeated proof within the same day remains suppressed, while the
     same freshly triggered event is eligible on the next day.
+18. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+    splits the former 212.98–221.24 high cluster because its full width is about
+    3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
+    197.0038 overlaps established Monthly-low support near 194.93, so established
+    M support wins and SAP displays no RT1 under these data and defaults.
 
 ## TradingView validation sequence
 
