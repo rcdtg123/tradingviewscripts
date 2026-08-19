@@ -7,6 +7,8 @@ const plabMonthlyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1M.csv";
 const plabDailyPath = "/Users/dhavader/Downloads/BATS_PLAB, 1D.csv";
 const anetMonthlyPath = "/Users/dhavader/Downloads/BATS_ANET, 1M.csv";
 const anetDailyPath = "/Users/dhavader/Downloads/BATS_ANET, 1D.csv";
+const avgoMonthlyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1M.csv";
+const avgoDailyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1D.csv";
 
 function readCsv(path) {
   const [header, ...lines] = fs.readFileSync(path, "utf8").trim().split(/\r?\n/);
@@ -380,6 +382,67 @@ assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260818), 
 assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_BREAKOUT", 316.2, 20260818), true);
 assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 320.0, 20260818), true);
 assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_APPROACH", 316.2, 20260819), true);
+assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), true);
+assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_REACHED", 358.445, 20260819), true);
+assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), false);
+
+function crossedDown({ previousLive, live, priorClose, open, low }, level) {
+  const liveCross = Number.isFinite(previousLive) && previousLive > level && live <= level;
+  const gapCross = priorClose > level && open <= level;
+  const rangeCross = open > level && low <= level;
+  return liveCross || gapCross || rangeCross;
+}
+
+assert.equal(crossedDown(
+  { previousLive: 380, live: 370, priorClose: 380, open: 380, low: 370 }, 371), true);
+assert.equal(crossedDown(
+  { previousLive: NaN, live: 350, priorClose: 380, open: 350, low: 348 }, 358.445), true);
+assert.equal(crossedDown(
+  { previousLive: NaN, live: 361.5, priorClose: 380, open: 372.4, low: 357.6101 }, 358.445), true);
+assert.equal(crossedDown(
+  { previousLive: 350, live: 360, priorClose: 350, open: 350, low: 349 }, 358.445), false);
+
+const avgoDaily = readCsv(avgoDailyPath);
+const avgoTrueRange = avgoDaily.map((bar, index) => index === 0
+  ? bar.high - bar.low
+  : Math.max(
+    bar.high - bar.low,
+    Math.abs(bar.high - avgoDaily[index - 1].close),
+    Math.abs(bar.low - avgoDaily[index - 1].close),
+  ));
+const avgoAtr = rma(avgoTrueRange, 14);
+const avgoConfirmedIndex = avgoDaily.length - 2;
+const avgoConfirmedAtrPercent = sma(
+  avgoAtr.map((value, index) => value / avgoDaily[index].close * 100),
+  50,
+)[avgoConfirmedIndex];
+const avgoApproachPercent = Math.max(1, Math.min(7, avgoConfirmedAtrPercent * 0.75));
+const avgoMonthly = readCsv(avgoMonthlyPath).slice(0, -1).slice(-120);
+const avgoLowZones = detect(
+  avgoMonthly.map((bar) => ({ price: bar.low, timestamp: bar.time })),
+  avgoConfirmedAtrPercent * 2,
+  2,
+).sort((first, second) => second.center - first.center);
+const avgoM1 = avgoLowZones.find((zone) => zone.center <= 380);
+const avgoApproachBoundary = avgoM1.center * (1 + avgoApproachPercent / 100);
+const avgoToday = avgoDaily.at(-1);
+assert.equal(Number(avgoM1.center.toFixed(3)), 358.445);
+assert.equal(avgoM1.touches, 2);
+assert.equal(Number(avgoApproachBoundary.toFixed(3)), 371.049);
+assert.equal(crossedDown({
+  previousLive: NaN,
+  live: avgoToday.close,
+  priorClose: avgoDaily.at(-2).close,
+  open: avgoToday.open,
+  low: avgoToday.low,
+}, avgoApproachBoundary), true);
+assert.equal(crossedDown({
+  previousLive: NaN,
+  live: avgoToday.close,
+  priorClose: avgoDaily.at(-2).close,
+  open: avgoToday.open,
+  low: avgoToday.low,
+}, avgoM1.center), true);
 
 console.log(JSON.stringify({
   dailyRows: daily.length,

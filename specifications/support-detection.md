@@ -30,6 +30,11 @@ scope is exclusively Monthly market structure.
   its first fire per exchange date, suppress repeats that date, and permit a
   newly triggered cycle on a later date. Distinct events and centers remain
   independent.
+- Detect each downward support boundary through any of three isolated paths:
+  consecutive live prices, prior extended-session Daily close to current Daily
+  open (gap), or current Daily open above the boundary with the accumulated
+  Daily low at/below it. Evaluate these only in the existing realtime alert
+  block and pass them through the unchanged Daily deduplication gate.
 
 ## Data
 

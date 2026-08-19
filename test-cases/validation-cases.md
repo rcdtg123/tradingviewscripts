@@ -154,6 +154,15 @@ accepting these dates or prices as exact.
     or different resistance alert remains eligible that day. After a normal
     rearm and a fresh crossing on the next exchange date, allow one new MR1
     approach notification.
+16. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
+    and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
+    not gap through either boundary, but the Daily low 357.6101 proves downward
+    intraday traversal through both. Recover approach and reached as distinct
+    events even when `previousLivePrice` is unavailable.
+17. A true gap from prior close 380 to open 350 crosses M1 358.445 even if the
+    current Daily high never returns to M1. Upward movement from below must not
+    qualify. Repeated proof within the same day remains suppressed, while the
+    same freshly triggered event is eligible on the next day.
 
 ## TradingView validation sequence
 

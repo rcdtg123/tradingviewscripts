@@ -140,6 +140,13 @@ Rising into a support zone from below does not trigger these alerts. Alert
 stages do not repeat while price remains near the same zone and rearm only after
 price moves sufficiently above the approach band.
 
+Downward support events use three complementary paths: consecutive live-price
+crossing, a gap from the prior extended-session Daily close through the current
+Daily open, and an intraday traversal from a Daily open above the boundary to a
+Daily low at or below it. The fallback paths recover crossings after an alert
+starts or restarts; the per-event Daily gate prevents repeated notifications.
+Approach, reached, and break remain distinct event identities.
+
 ### Resistance alerts
 
 - **Approaching resistance:** rising price enters a displayed `R` or `MR` zone

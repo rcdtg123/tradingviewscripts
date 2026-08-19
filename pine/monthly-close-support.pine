@@ -511,10 +511,10 @@ if chartIsAboveDaily and dailyIntrabarCount > 0
 // and the historical baseline use the same session definition. On instruments
 // without extended trading it naturally resolves to the regular session.
 string extendedTickerId = ticker.new(syminfo.prefix, syminfo.ticker, session.extended)
-[currentExtendedDailyVolume, prior20DayAverageExtendedVolume] = request.security(
+[currentExtendedDailyOpen, currentExtendedDailyLow, priorExtendedDailyClose, currentExtendedDailyVolume, prior20DayAverageExtendedVolume] = request.security(
      extendedTickerId,
      "1D",
-     [volume, ta.sma(volume, 20)[1]],
+     [open, low, close[1], volume, ta.sma(volume, 20)[1]],
      lookahead = barmerge.lookahead_off)
 
 var array<Observation> monthlyLowObservations = array.new<Observation>()
@@ -931,16 +931,42 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             float breakBoundary = support - rearmDistance
             int stateIndex = f_stateIndex(support)
 
-            bool crossedApproachDown =
+            bool liveCrossedApproachDown =
                  not na(previousLivePrice) and
-                 previousLivePrice > approachBoundary and
-                 close <= approachBoundary and close > support
-            bool crossedSupportDown =
+                 previousLivePrice > approachBoundary and close <= approachBoundary
+            bool gappedThroughApproach =
+                 priorExtendedDailyClose > approachBoundary and
+                 currentExtendedDailyOpen <= approachBoundary
+            bool dailyRangeCrossedApproachDown =
+                 currentExtendedDailyOpen > approachBoundary and
+                 currentExtendedDailyLow <= approachBoundary
+            bool crossedApproachDown =
+                 liveCrossedApproachDown or gappedThroughApproach or
+                 dailyRangeCrossedApproachDown
+
+            bool liveCrossedSupportDown =
                  not na(previousLivePrice) and
                  previousLivePrice > support and close <= support
-            bool crossedBreakDown =
+            bool gappedThroughSupport =
+                 priorExtendedDailyClose > support and currentExtendedDailyOpen <= support
+            bool dailyRangeCrossedSupportDown =
+                 currentExtendedDailyOpen > support and currentExtendedDailyLow <= support
+            bool crossedSupportDown =
+                 liveCrossedSupportDown or gappedThroughSupport or
+                 dailyRangeCrossedSupportDown
+
+            bool liveCrossedBreakDown =
                  not na(previousLivePrice) and
                  previousLivePrice > breakBoundary and close <= breakBoundary
+            bool gappedThroughBreak =
+                 priorExtendedDailyClose > breakBoundary and
+                 currentExtendedDailyOpen <= breakBoundary
+            bool dailyRangeCrossedBreakDown =
+                 currentExtendedDailyOpen > breakBoundary and
+                 currentExtendedDailyLow <= breakBoundary
+            bool crossedBreakDown =
+                 liveCrossedBreakDown or gappedThroughBreak or
+                 dailyRangeCrossedBreakDown
 
             // A meaningful recovery above the approach band rearms every stage.
             if close > approachBoundary + rearmDistance
@@ -953,7 +979,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  not array.get(reachedSent, stateIndex)
             bool shouldApproach =
                  enableApproachAlerts and crossedApproachDown and
-                 not array.get(approachSent, stateIndex) and not shouldReach
+                 not array.get(approachSent, stateIndex)
             bool shouldBreak =
                  enableBreakAlerts and crossedBreakDown and
                  not array.get(breakSent, stateIndex)
