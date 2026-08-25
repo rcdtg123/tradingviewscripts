@@ -175,6 +175,21 @@ accepting these dates or prices as exact.
     197.0038 overlaps established Monthly-low support near 194.93, so established
     M support wins and SAP displays no RT1 under these data and defaults.
 
+## Support buy-volume cases
+
+1. Run the alert on 1D. Footprint data unavailable or any other alert interval:
+   no support buy-volume alert.
+2. Live price between the M center and upper approach boundary, buy share 60%
+   or more, and buy volume 2.3x its prior-20-Day average: emit the 2x tier.
+3. Live price `0.30 * Daily ATR` below M, still above the `0.50 * ATR` lower
+   reaction boundary, and recovered `0.25 * ATR` from the Daily low: eligible.
+4. The same below-support setup with recovery of only `0.20 * ATR`: no alert.
+5. Price below `M - 0.50 * Daily ATR`, buy share below 60%, or buy volume not
+   greater than sell volume: no alert.
+6. If the first eligible evaluation is 5.2x, emit only the 4x tier and mark 2x
+   as implicitly passed. A later 8x evaluation can emit the 8x tier.
+7. Limit each 2x/4x/8x tier to once per symbol, M center, and trading day.
+
 ## TradingView validation sequence
 
 ### Chart-timeframe normalization

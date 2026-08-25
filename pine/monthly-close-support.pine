@@ -67,10 +67,14 @@ string GROUP_ALERTS = "3. Alerts"
 bool enableApproachAlerts = input.bool(true, "Alert when live price enters approach zone", group = GROUP_ALERTS)
 bool enableReachedAlerts = input.bool(true, "Alert when live price reaches support", group = GROUP_ALERTS)
 bool enableBreakAlerts = input.bool(true, "Alert when live price breaks support", group = GROUP_ALERTS)
+bool enableSupportBuyVolumeAlerts = input.bool(true, "Alert on high buy volume in support reaction zone", group = GROUP_ALERTS)
 bool enableResistanceReachedAlerts = input.bool(true, "Alert when live price reaches resistance", group = GROUP_ALERTS)
 bool enableRetestReachedAlerts = input.bool(true, "Alert when live price reaches retest support", group = GROUP_ALERTS)
 bool enableResistanceBreakoutAlerts = input.bool(true, "Alert on volume-confirmed resistance breakout", group = GROUP_ALERTS)
 float rearmDistanceAtr = input.float(0.25, "Rearm distance × Daily ATR", 0.0, 2.0, 0.05, group = GROUP_ALERTS)
+float buyReactionExtensionAtr = input.float(0.50, "Buy-volume reaction extension × Daily ATR", 0.0, 3.0, 0.05, group = GROUP_ALERTS)
+float buyReactionBounceAtr = input.float(0.25, "Below-support rebound × Daily ATR", 0.0, 2.0, 0.05, group = GROUP_ALERTS)
+float minimumBuySharePercent = input.float(60.0, "Minimum buy share %", 50.0, 100.0, 1.0, group = GROUP_ALERTS)
 float breakoutConvictionAtr = input.float(0.25, "Breakout conviction × Daily ATR", 0.0, 3.0, 0.05, group = GROUP_ALERTS)
 
 string GROUP_STYLE = "4. Style"
@@ -519,6 +523,15 @@ string extendedTickerId = ticker.new(syminfo.prefix, syminfo.ticker, session.ext
      [open, low, close[1], volume, ta.sma(volume, 20)[1]],
      lookahead = barmerge.lookahead_off)
 
+// Premium/Ultimate footprint data categorizes the current chart bar's volume
+// as buy or sell volume. Support buy-volume alerts intentionally run only on a
+// 1D alert interval so the baseline represents 20 completed Daily sessions.
+footprint dailyFootprint = request.footprint(100, 70, 300)
+float currentDailyBuyVolume = not na(dailyFootprint) ? dailyFootprint.buy_volume() : na
+float currentDailySellVolume = not na(dailyFootprint) ? dailyFootprint.sell_volume() : na
+float prior20DayAverageBuyVolume = ta.sma(currentDailyBuyVolume, 20)[1]
+bool isOneDayContext = timeframe.in_seconds() == timeframe.in_seconds("1D")
+
 var array<Observation> monthlyLowObservations = array.new<Observation>()
 var array<Observation> monthlyHighObservations = array.new<Observation>()
 bool newConfirmedMonth =
@@ -914,6 +927,7 @@ f_stateIndex(float center) =>
 bool approachEvent = false
 bool reachedEvent = false
 bool breakEvent = false
+bool supportBuyVolumeEvent = false
 bool resistanceReachedEvent = false
 bool resistanceBreakoutEvent = false
 bool mrReachedEvent = false
@@ -974,6 +988,16 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  enableBreakAlerts and crossedBreakDown and
                  not array.get(breakSent, stateIndex)
 
+            float totalDirectionalVolume = currentDailyBuyVolume + currentDailySellVolume
+            float buySharePercent = not na(totalDirectionalVolume) and totalDirectionalVolume > 0.0 ? currentDailyBuyVolume / totalDirectionalVolume * 100.0 : na
+            float buyVolumeMultiple = not na(prior20DayAverageBuyVolume) and prior20DayAverageBuyVolume > 0.0 ? currentDailyBuyVolume / prior20DayAverageBuyVolume : na
+            float buyReactionLowerBoundary = support - buyReactionExtensionAtr * confirmedDailyAtr
+            float recoveryFromDailyLowAtr = confirmedDailyAtr > 0.0 ? (close - currentExtendedDailyLow) / confirmedDailyAtr : na
+            bool insideBuyReactionZone = close >= buyReactionLowerBoundary and close <= approachBoundary
+            bool hasBuyDominance = not na(buySharePercent) and buySharePercent >= minimumBuySharePercent and currentDailyBuyVolume > currentDailySellVolume
+            bool hasRequiredBounce = close >= support or recoveryFromDailyLowAtr >= buyReactionBounceAtr
+            bool shouldEvaluateBuyVolume = enableSupportBuyVolumeAlerts and isOneDayContext and insideBuyReactionZone and hasBuyDominance and hasRequiredBounce and not na(buyVolumeMultiple) and buyVolumeMultiple >= 2.0
+
             if shouldApproach
                 array.set(approachSent, stateIndex, true)
                 string approachMessage =
@@ -1009,6 +1033,32 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 if f_shouldSendDailyAlert("M_BREAK", support)
                     breakEvent := true
                     alert(breakMessage, alert.freq_all)
+
+            if shouldEvaluateBuyVolume
+                int buyVolumeTier = buyVolumeMultiple >= 8.0 ? 8 : buyVolumeMultiple >= 4.0 ? 4 : 2
+                string buyVolumeEventType = "M_BUY_" + str.tostring(buyVolumeTier) + "X"
+                // If evaluation begins above a higher tier, consume the lower
+                // tiers silently so a later decline in the ratio cannot emit a
+                // backward 2x or 4x notification.
+                if buyVolumeTier >= 4
+                    bool ignored2xTier = f_shouldSendDailyAlert("M_BUY_2X", support)
+                if buyVolumeTier >= 8
+                    bool ignored4xTier = f_shouldSendDailyAlert("M_BUY_4X", support)
+                if f_shouldSendDailyAlert(buyVolumeEventType, support)
+                    string buyLocation = close >= support ? "in" : "below"
+                    string buyVolumeMessage =
+                         syminfo.tickerid + " " + str.tostring(buyVolumeMultiple, "#.##") + "x buy volume " + buyLocation + " M" + str.tostring(zoneIndex + 1) + " Monthly support" +
+                         "\nLive price: " + str.tostring(close, format.mintick) +
+                         "\nSupport: " + str.tostring(support, format.mintick) +
+                         "\nLower reaction boundary: " + str.tostring(buyReactionLowerBoundary, format.mintick) +
+                         "\nBuy volume: " + str.tostring(currentDailyBuyVolume, format.volume) +
+                         "\n20D average buy volume: " + str.tostring(prior20DayAverageBuyVolume, format.volume) +
+                         "\nBuy share: " + str.tostring(buySharePercent, "#.##") + "%" +
+                         "\nRecovery: " + str.tostring(recoveryFromDailyLowAtr, "#.##") + " ATR" +
+                         "\nTier: " + str.tostring(buyVolumeTier) + "x" +
+                         "\nStrength: " + f_strengthLabel(zone) + supportRole
+                    supportBuyVolumeEvent := true
+                    alert(buyVolumeMessage, alert.freq_all)
 
     int liveResistanceCount = math.min(displayedResistanceZones, array.size(resistanceZones))
     float volumeMultiple =
@@ -1222,6 +1272,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
 alertcondition(approachEvent, "Approaching Monthly support", "{{exchange}}:{{ticker}} is approaching Monthly support at {{close}}")
 alertcondition(reachedEvent, "Reached Monthly support", "{{exchange}}:{{ticker}} reached Monthly support at {{close}}")
 alertcondition(breakEvent, "Broke below Monthly support", "{{exchange}}:{{ticker}} broke below Monthly support at {{close}}")
+alertcondition(supportBuyVolumeEvent, "High buy volume in Monthly support", "{{exchange}}:{{ticker}} has high buy volume in a Monthly support reaction zone at {{close}}")
 alertcondition(resistanceReachedEvent, "Reached former-support Monthly resistance", "{{exchange}}:{{ticker}} reached former-support Monthly resistance at {{close}}")
 alertcondition(resistanceBreakoutEvent, "Volume-confirmed Monthly resistance breakout", "{{exchange}}:{{ticker}} broke Monthly resistance at {{close}}")
 alertcondition(mrReachedEvent, "Reached Monthly-high resistance", "{{exchange}}:{{ticker}} reached Monthly-high resistance at {{close}}")

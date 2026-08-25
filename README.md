@@ -142,10 +142,15 @@ crossing and rearm conditions occur again.
 - **Reached support:** falling live price reaches or crosses the exact median
   Monthly-low level.
 - **Broke support:** price falls `0.25 × Daily ATR` below the support level.
+- **High buy volume:** on a 1D alert interval, live price is inside the support
+  reaction range and footprint buy volume reaches a 2x, 4x, or 8x tier versus
+  the previous 20 completed Daily buy-volume values.
 
-Rising into a support zone from below does not trigger these alerts. Alert
-stages do not repeat while price remains near the same zone and rearm only after
-price moves sufficiently above the approach band.
+Rising into a support zone from below does not trigger the approach, reached,
+or break price stages. A below-support buy-volume reversal can qualify only
+after satisfying its separate rebound requirement. Price stages do not repeat
+while price remains near the same zone and rearm only after price moves
+sufficiently above the approach band.
 
 An exact support reach requires an observed falling live-price crossing of the
 displayed center. A new Daily bar opening completely below the center is a gap,
@@ -154,6 +159,15 @@ event retains live-price, gap, and Daily-range detection. A gap-break remains
 eligible only while live price is still at or below the break boundary, which
 prevents a recovered price from emitting a stale breakdown notification. The
 per-event Daily gate prevents repeated notifications.
+
+The buy-volume reaction range extends from the normal upper approach boundary
+down to `M center − 0.50 × confirmed Daily ATR`. Buy volume must exceed sell
+volume and represent at least 60% of directional footprint volume. Below the M
+center, price must also recover at least `0.25 × Daily ATR` from the current
+extended-session Daily low. The script sends only the highest newly satisfied
+2x/4x/8x tier and limits each tier, symbol, and M center to once per trading
+day. Footprint alerts require TradingView Premium or Ultimate and a 1D alert
+interval; unavailable footprint data produces no substitute alert.
 
 ### Resistance alerts
 

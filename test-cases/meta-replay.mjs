@@ -17,6 +17,10 @@ assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("M_REACHED"'), true);
 assert.equal(pineSource.includes('alertcondition(approachEvent'), true);
 assert.equal(pineSource.includes("currentExtendedDailyOpen <= breakBoundary and\n                 close <= breakBoundary"), true);
+assert.equal(pineSource.includes("request.footprint(100, 70, 300)"), true);
+assert.equal(pineSource.includes('"M_BUY_" + str.tostring(buyVolumeTier) + "X"'), true);
+assert.equal(pineSource.includes("buyReactionExtensionAtr * confirmedDailyAtr"), true);
+assert.equal(pineSource.includes("recoveryFromDailyLowAtr >= buyReactionBounceAtr"), true);
 assert.equal(pineSource.includes('" approaching " + structureName + " retest support"'), false);
 assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
@@ -422,6 +426,42 @@ function crossedBreakDown({ previousLive, live, priorClose, open, low }, level) 
 
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 275.64, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), false);
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 271.5, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), true);
+
+function supportBuyVolumeSignal({
+  live, support, approach, atr, dailyLow, buyVolume, sellVolume,
+  averageBuyVolume, isOneDay = true,
+}) {
+  const lowerBoundary = support - 0.5 * atr;
+  const buyShare = buyVolume / (buyVolume + sellVolume) * 100;
+  const multiple = buyVolume / averageBuyVolume;
+  const recoveryAtr = (live - dailyLow) / atr;
+  const eligible = isOneDay && live >= lowerBoundary && live <= approach &&
+    buyVolume > sellVolume && buyShare >= 60 && multiple >= 2 &&
+    (live >= support || recoveryAtr >= 0.25);
+  const tier = !eligible ? 0 : multiple >= 8 ? 8 : multiple >= 4 ? 4 : 2;
+  return { eligible, tier };
+}
+
+assert.deepEqual(supportBuyVolumeSignal({ live: 101, support: 100, approach: 105, atr: 10, dailyLow: 98, buyVolume: 230, sellVolume: 120, averageBuyVolume: 100 }), { eligible: true, tier: 2 });
+assert.deepEqual(supportBuyVolumeSignal({ live: 97, support: 100, approach: 105, atr: 10, dailyLow: 94.5, buyVolume: 520, sellVolume: 200, averageBuyVolume: 100 }), { eligible: true, tier: 4 });
+assert.equal(supportBuyVolumeSignal({ live: 97, support: 100, approach: 105, atr: 10, dailyLow: 95, buyVolume: 520, sellVolume: 200, averageBuyVolume: 100 }).eligible, false);
+assert.equal(supportBuyVolumeSignal({ live: 94.9, support: 100, approach: 105, atr: 10, dailyLow: 90, buyVolume: 520, sellVolume: 200, averageBuyVolume: 100 }).eligible, false);
+assert.equal(supportBuyVolumeSignal({ live: 101, support: 100, approach: 105, atr: 10, dailyLow: 98, buyVolume: 230, sellVolume: 180, averageBuyVolume: 100 }).eligible, false);
+assert.deepEqual(supportBuyVolumeSignal({ live: 101, support: 100, approach: 105, atr: 10, dailyLow: 98, buyVolume: 850, sellVolume: 100, averageBuyVolume: 100 }), { eligible: true, tier: 8 });
+
+const buyTierDates = new Map();
+function newlyReachedBuyTier(multiple, date) {
+  const tier = multiple >= 8 ? 8 : multiple >= 4 ? 4 : multiple >= 2 ? 2 : 0;
+  if (tier >= 4) buyTierDates.set("2x", date);
+  if (tier >= 8) buyTierDates.set("4x", date);
+  if (!tier || buyTierDates.get(`${tier}x`) === date) return 0;
+  buyTierDates.set(`${tier}x`, date);
+  return tier;
+}
+assert.equal(newlyReachedBuyTier(5.2, 20260825), 4);
+assert.equal(newlyReachedBuyTier(3.1, 20260825), 0);
+assert.equal(newlyReachedBuyTier(8.3, 20260825), 8);
+assert.equal(newlyReachedBuyTier(8.6, 20260825), 0);
 
 function reachedRetest({ active = true, visible = true, previousLive, live, open, isNew = false }, center) {
   const liveReach = Number.isFinite(previousLive) && previousLive > center && live <= center &&

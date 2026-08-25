@@ -177,6 +177,17 @@ scope is exclusively Monthly market structure.
   a newly observed downward crossing from above.
 - Every dynamic alert message includes Monthly confirmation strength using the
   notation `2xM`, `3xM`, `6xM`, and so on.
+- On a 1D alert interval, request one TradingView volume footprint and calculate
+  current Daily buy volume, sell volume, buy share, and the SMA of the previous
+  20 completed Daily buy-volume values.
+- A support buy-volume reaction is eligible from the upper M approach boundary
+  down to `M center - 0.50 * confirmed Daily ATR`. Require buy volume greater
+  than sell volume, buy share of at least 60%, and a 2x/4x/8x buy-volume ratio.
+- Below the M center, additionally require recovery of at least `0.25 * Daily
+  ATR` from the current extended-session Daily low.
+- Send only the highest newly satisfied buy-volume tier on an evaluation. Limit
+  each tier, symbol, and M center to once per exchange trading day. Skip the
+  alert when footprint data is unavailable or the alert interval is not 1D.
 
 ## Resistance and breakout alerts
 
