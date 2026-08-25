@@ -35,12 +35,12 @@ accepting these dates or prices as exact.
 ## Alert-state cases
 
 1. Every alert-eligible zone is visible, and no hidden zone can trigger.
-2. Outside -> M1 approach band: no alert.
-3. Remain inside the approach band: no alert.
+2. Outside -> M1 approach band: one approach alert.
+3. Remain inside the approach band: no repeat.
 4. Fall to/cross M1 support: one reached alert.
 5. Fall `0.25 * Daily ATR` below M1: one break alert.
-6. Recover meaningfully above the approach boundary, then fall through the
-   exact center: a new reached event is armed (subject to once-daily dedup).
+6. Recover meaningfully above the approach boundary, then re-enter: a new
+   approach/reached sequence is armed (subject to once-daily dedup).
 7. Gap completely below support: no exact reached alert; the distinct break
    alert may still qualify at its own boundary.
 8. One live update crossing multiple displayed centers: one reached alert per
@@ -166,7 +166,10 @@ accepting these dates or prices as exact.
     exact support reach. Opening exactly at M1 qualifies. Upward movement from
     below must not qualify, and the separate M-break detector retains gap/range
     recovery at its own boundary.
-19. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+19. A gap from above an M-break boundary to an open below it qualifies only
+    while live price remains at or below that boundary. If price has recovered
+    above it before the script evaluates the symbol, suppress the stale break.
+20. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
     197.0038 overlaps established Monthly-low support near 194.93, so established

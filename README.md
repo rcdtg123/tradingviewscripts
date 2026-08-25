@@ -138,8 +138,9 @@ crossing and rearm conditions occur again.
 
 ### Support alerts
 
+- **Approaching support:** falling price crosses the upper approach boundary.
 - **Reached support:** falling live price reaches or crosses the exact median
-  Monthly-low level. The upper approach band remains visible but is silent.
+  Monthly-low level.
 - **Broke support:** price falls `0.25 × Daily ATR` below the support level.
 
 Rising into a support zone from below does not trigger these alerts. Alert
@@ -149,8 +150,10 @@ price moves sufficiently above the approach band.
 An exact support reach requires an observed falling live-price crossing of the
 displayed center. A new Daily bar opening completely below the center is a gap,
 not an exact reach; opening exactly at the center qualifies. The separate break
-event retains live-price, gap, and Daily-range detection. The per-event Daily
-gate prevents repeated notifications.
+event retains live-price, gap, and Daily-range detection. A gap-break remains
+eligible only while live price is still at or below the break boundary, which
+prevents a recovered price from emitting a stale breakdown notification. The
+per-event Daily gate prevents repeated notifications.
 
 ### Resistance alerts
 

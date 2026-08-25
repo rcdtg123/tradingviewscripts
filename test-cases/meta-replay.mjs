@@ -7,7 +7,7 @@ const pineSource = fs.readFileSync(
 );
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_APPROACH"'), false);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("R_APPROACH"'), false);
-assert.equal(pineSource.includes('f_shouldSendDailyAlert("M_APPROACH"'), false);
+assert.equal(pineSource.includes('f_shouldSendDailyAlert("M_APPROACH"'), true);
 assert.equal(pineSource.includes('alertcondition(mrApproachEvent'), false);
 assert.equal(pineSource.includes('alertcondition(resistanceApproachEvent'), false);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_RETEST"'), false);
@@ -15,7 +15,8 @@ assert.equal(pineSource.includes('f_shouldSendDailyAlert("RT_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("R_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("M_REACHED"'), true);
-assert.equal(pineSource.includes('alertcondition(approachEvent'), false);
+assert.equal(pineSource.includes('alertcondition(approachEvent'), true);
+assert.equal(pineSource.includes("currentExtendedDailyOpen <= breakBoundary and\n                 close <= breakBoundary"), true);
 assert.equal(pineSource.includes('" approaching " + structureName + " retest support"'), false);
 assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
@@ -400,7 +401,9 @@ function shouldSendDailyAlert(symbol, eventType, center, date) {
   return true;
 }
 assert.equal(shouldSendDailyAlert("BATS:AAPL", "MR_BREAKOUT", 316.2, 20260818), true);
+assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), true);
 assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_REACHED", 358.445, 20260819), true);
+assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_APPROACH", 358.445, 20260819), false);
 assert.equal(shouldSendDailyAlert("BATS:AVGO", "M_REACHED", 358.445, 20260819), false);
 
 function crossedDown({ previousLive, live, priorClose, open, low }, level) {
@@ -409,6 +412,16 @@ function crossedDown({ previousLive, live, priorClose, open, low }, level) {
   const rangeCross = open > level && low <= level;
   return liveCross || gapCross || rangeCross;
 }
+
+function crossedBreakDown({ previousLive, live, priorClose, open, low }, level) {
+  const liveCross = Number.isFinite(previousLive) && previousLive > level && live <= level;
+  const gapCross = priorClose > level && open <= level && live <= level;
+  const rangeCross = open > level && low <= level;
+  return liveCross || gapCross || rangeCross;
+}
+
+assert.equal(crossedBreakDown({ previousLive: NaN, live: 275.64, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), false);
+assert.equal(crossedBreakDown({ previousLive: NaN, live: 271.5, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), true);
 
 function reachedRetest({ active = true, visible = true, previousLive, live, open, isNew = false }, center) {
   const liveReach = Number.isFinite(previousLive) && previousLive > center && live <= center &&
