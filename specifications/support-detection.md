@@ -157,20 +157,19 @@ scope is exclusively Monthly market structure.
   outside the displayed shortlist must not generate alerts.
 - Evaluate live price updates intraday, including pre-market and post-market
   when the TradingView watchlist alert session is configured as Extended.
-- Send an approach alert when live price first enters the one-sided approach
-  band by crossing its upper boundary downward from above.
-- Send a distinct reached alert when live price falls to or crosses below the
-  median Monthly support from above. Exact equality is not required.
+- Keep the one-sided approach band visible, but do not alert when price enters
+  it.
+- Send a reached alert only when falling live price reaches or crosses the exact
+  median Monthly support from above. A new Daily bar opening completely below
+  the center is not an exact reach; opening exactly at the center qualifies.
 - Send a break alert only after price falls `0.25 * Daily ATR` below support.
 - Rising into an approach band or upward through support from below never
   triggers an approach, reached, or break alert.
 - Do not repeat a stage while price remains near the same zone.
 - Rearm all stages only after price moves at least `0.25 * Daily ATR` above the
   approach boundary.
-- If one update gaps through the approach band and support, suppress the
-  redundant approach alert and send the reached alert.
-- If one update crosses multiple displayed supports, emit an alert for every
-  crossed support.
+- If one update crosses multiple displayed support centers, emit a reached
+  alert for every exact center crossed.
 - If an alert starts while price is already inside an approach band or below a
   support, initialize direction state without alerting. A later alert requires
   a newly observed downward crossing from above.

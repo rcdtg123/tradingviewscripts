@@ -35,15 +35,16 @@ accepting these dates or prices as exact.
 ## Alert-state cases
 
 1. Every alert-eligible zone is visible, and no hidden zone can trigger.
-2. Outside -> M1 approach band: one approach alert.
-3. Remain inside the approach band: no repeat.
+2. Outside -> M1 approach band: no alert.
+3. Remain inside the approach band: no alert.
 4. Fall to/cross M1 support: one reached alert.
 5. Fall `0.25 * Daily ATR` below M1: one break alert.
-6. Recover meaningfully above the approach boundary, then re-enter: a new
-   approach/reached sequence is allowed, including within the same day.
-7. Gap through approach and support: reached alert only.
-8. Gap through multiple displayed supports: one reached alert per crossed
-   support.
+6. Recover meaningfully above the approach boundary, then fall through the
+   exact center: a new reached event is armed (subject to once-daily dedup).
+7. Gap completely below support: no exact reached alert; the distinct break
+   alert may still qualify at its own boundary.
+8. One live update crossing multiple displayed centers: one reached alert per
+   crossed support.
 9. Rising into a band from below: no alert.
 10. Alert starts while already inside a band or below support: no startup alert;
     wait for a future observed downward crossing from above.
@@ -159,14 +160,12 @@ accepting these dates or prices as exact.
     A new Daily bar opening completely above the center is not an exact reach;
     opening exactly at it qualifies. Hidden R/MR zones cannot alert.
 17. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
-    and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
-    not gap through either boundary, but the Daily low 357.6101 proves downward
-    intraday traversal through both. Recover approach and reached as distinct
-    events even when `previousLivePrice` is unavailable.
-18. A true gap from prior close 380 to open 350 crosses M1 358.445 even if the
-    current Daily high never returns to M1. Upward movement from below must not
-    qualify. Repeated proof within the same day remains suppressed, while the
-    same freshly triggered event is eligible on the next day.
+    and an approach boundary near 371.049. Crossing only 371.049 is silent. A
+    falling live-price update through 358.445 emits `M_REACHED`.
+18. A true gap from prior close 380 to an open below M1 does not count as an
+    exact support reach. Opening exactly at M1 qualifies. Upward movement from
+    below must not qualify, and the separate M-break detector retains gap/range
+    recovery at its own boundary.
 19. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
