@@ -182,6 +182,10 @@ scope is exclusively Monthly market structure.
 - Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
   Continue detecting and latching their upward approach internally so both
   volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
+- Send `R_REACHED` or `MR_REACHED` only when rising live price reaches/crosses
+  the exact center of a displayed resistance. Exclude a new Daily bar that gaps
+  completely above the center, allow an open exactly at the center, suppress
+  hidden zones, and apply the standard once-per-day exact-event gate.
 - Do not alert on entry into the upper Retest approach band. Send the separate
   Retest alert only when falling price reaches the exact center of a displayed
   `RT1`, `RT2`, and so on; hidden Retest zones cannot alert.

@@ -159,6 +159,10 @@ Approach, reached, and break remain distinct event identities.
 - Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
   notifications. Their entry crossings remain tracked internally because the
   existing volume-confirmed breakout workflows depend on those latches.
+- A rising live price that reaches or crosses the exact center of a displayed
+  resistance emits `R_REACHED` or `MR_REACHED`. A new Daily bar that gaps
+  completely above the center does not count as an exact reach; opening exactly
+  at the center does. Hidden resistance zones cannot alert.
 - Falling into a resistance zone from above does not trigger the approach
   alert.
 - The indicator latches an approached level as resistance during its breakout
@@ -214,6 +218,7 @@ old alert and create it again so the latest logic is used.
 | Approach ATR% multiplier | 0.75 |
 | Minimum approach width | 1% |
 | Maximum approach width | 7% |
+| Alert when resistance center is reached | On |
 | Minimum Monthly lows for support | 2 |
 | Minimum Monthly lows for `R` | 4 |
 | Visible support zones | 5 |

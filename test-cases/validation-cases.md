@@ -154,16 +154,20 @@ accepting these dates or prices as exact.
     internal approach latches so R/MR volume-confirmed breakouts still qualify.
     Continue sending the distinct Retest alert only at the exact displayed RT
     center, not at its upper approach boundary.
-16. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
+16. Rising through the exact center of a displayed R or MR emits one respective
+    `R_REACHED` or `MR_REACHED` alert. Entering only its approach band is silent.
+    A new Daily bar opening completely above the center is not an exact reach;
+    opening exactly at it qualifies. Hidden R/MR zones cannot alert.
+17. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Prior close 380.00 and open 372.40 do
     not gap through either boundary, but the Daily low 357.6101 proves downward
     intraday traversal through both. Recover approach and reached as distinct
     events even when `previousLivePrice` is unavailable.
-17. A true gap from prior close 380 to open 350 crosses M1 358.445 even if the
+18. A true gap from prior close 380 to open 350 crosses M1 358.445 even if the
     current Daily high never returns to M1. Upward movement from below must not
     qualify. Repeated proof within the same day remains suppressed, while the
     same freshly triggered event is eligible on the next day.
-18. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+19. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
     197.0038 overlaps established Monthly-low support near 194.93, so established
