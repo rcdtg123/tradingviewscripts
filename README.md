@@ -48,12 +48,7 @@ fallen below it. These zones:
 
 - Uses completed Monthly candle highs only.
 - Requires at least two qualifying Monthly highs by default.
-- Keeps a qualifying zone internal while price is falling from above it. The
-  zone is revealed only when rising live price crosses its lower approach
-  boundary from below; that reveal is silent.
-- Keeps the revealed zone visible through its center and breakout lifecycle.
-  A retreat below the lower boundary by `0.25 × Daily ATR` hides and rearms it.
-- Displays up to five surviving, direction-activated resistance zones.
+- Displays up to five surviving resistance zones strictly above live price.
 - Numbers levels by proximity as `MR1` through `MR5`.
 - Uses red boxes and labels because both `R` and `MR` represent resistance.
 
@@ -183,9 +178,6 @@ interval; unavailable footprint data produces no substitute alert.
 - Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
   notifications. Their entry crossings remain tracked internally because the
   existing volume-confirmed breakout workflows depend on those latches.
-- An MR zone first becomes visible on an upward crossing of its lower approach
-  boundary. This boundary event never sends an alert; falling through the same
-  boundary from above neither reveals the zone nor alerts.
 - A rising live price that reaches or crosses the exact center of a displayed
   resistance emits `R_REACHED` or `MR_REACHED`. A new Daily bar that gaps
   completely above the center does not count as an exact reach; opening exactly

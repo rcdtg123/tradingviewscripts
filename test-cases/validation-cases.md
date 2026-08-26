@@ -115,9 +115,8 @@ accepting these dates or prices as exact.
 
 1. Two completed Monthly highs within the cluster-width limit produce an MR
    center at their median; a developing Monthly high never participates.
-2. Keep each MR candidate hidden while price falls from above it. Reveal it
-   only after rising live price crosses the lower approach boundary from below,
-   then retain it visibly through the center and breakout lifecycle.
+2. Display the nearest five MR centers strictly above live price. Never display
+   an MR center below price, including while it remains latched internally.
 3. After same-family pairwise decluttering, compare only overlapping cross-family
    R/MR candidates within 10%. Display the higher-conviction member and prefer
    MR only on an exact strength tie.
@@ -160,32 +159,27 @@ accepting these dates or prices as exact.
     `R_REACHED` or `MR_REACHED` alert. Entering only its approach band is silent.
     A new Daily bar opening completely above the center is not an exact reach;
     opening exactly at it qualifies. Hidden R/MR zones cannot alert.
-17. Crossing an MR lower approach boundary upward reveals the zone without an
-    alert. Crossing it downward, or loading the script while price is already
-    inside its band, leaves it hidden. A retreat more than `0.25 × Daily ATR`
-    below the boundary hides and rearms it; the next upward crossing can reveal
-    it again.
-18. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
+17. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Crossing only 371.049 is silent. A
     falling live-price update through 358.445 emits `M_REACHED`.
-19. A true gap from prior close 380 to an open below M1 does not count as an
+18. A true gap from prior close 380 to an open below M1 does not count as an
     exact support reach. Opening exactly at M1 qualifies. Upward movement from
     below must not qualify, and the separate M-break detector retains gap/range
     recovery at its own boundary.
-20. A gap from above an M-break boundary to an open below it qualifies only
+19. A gap from above an M-break boundary to an open below it qualifies only
     while live price remains at or below that boundary. If price has recovered
     above it before the script evaluates the symbol, suppress the stale break.
-21. A Daily bar that opened above the break boundary and traded below it also
+20. A Daily bar that opened above the break boundary and traded below it also
     qualifies only while live price remains below it. For META, an open of
     590.31 and low of 561.88 prove traversal of 579.71, but live price 586.40
     suppresses the delayed break. A later live price below 579.71 qualifies.
-22. For AVGO, reaching M1 358.445 on August 25 while remaining above its
+21. For AVGO, reaching M1 358.445 on August 25 while remaining above its
     354.852 break boundary latches and retains M1 in both display and alert
     evaluation. On August 26, open 357.12, low 350.06, and live/close 350.77
     cross that boundary and emit M_BREAK; only then is the pending lifecycle
     released. Recovery above the normal rearm boundary releases it without a
     break alert.
-23. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+22. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
     197.0038 overlaps established Monthly-low support near 194.93, so established

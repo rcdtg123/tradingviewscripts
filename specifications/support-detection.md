@@ -9,14 +9,8 @@ scope is exclusively Monthly market structure.
 ## Monthly-high resistance and cross-family priority
 
 - Cluster completed Monthly highs using the same volatility-normalized detector.
-- Require two Monthly highs by default. Keep each candidate hidden while price
-  falls from above it, then reveal and latch it only when rising live price
-  crosses its lower volatility-adjusted approach boundary from below.
-- The boundary reveal is silent. Keep the MR visible through its exact center
-  and breakout lifecycle; hide and rearm it after price retreats at least
-  `0.25 * Daily ATR` below the lower approach boundary.
-- Display the nearest five direction-activated candidates as `MR1` through
-  `MR5`.
+- Require two Monthly highs by default and display the nearest five strictly
+  above live price as `MR1` through `MR5`.
 - When an R and MR candidate overlap within 10%, retain the higher-conviction
   member. MR preference applies only when conviction ties; same-family
   survivors are not compared again during this cross-family step.
@@ -204,10 +198,8 @@ scope is exclusively Monthly market structure.
 ## Resistance and breakout alerts
 
 - Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
-  For MR, reveal and latch the zone only on an upward crossing of its lower
-  approach boundary. A downward crossing or script startup inside the band is
-  silent and leaves it hidden. This latch continues to support the existing
-  volume-confirmed breakout and Retest workflows.
+  Continue detecting and latching their upward approach internally so both
+  volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
 - Send `R_REACHED` or `MR_REACHED` only when rising live price reaches/crosses
   the exact center of a displayed resistance. Exclude a new Daily bar that gaps
   completely above the center, allow an open exactly at the center, suppress
