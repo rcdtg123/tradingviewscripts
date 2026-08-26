@@ -25,6 +25,9 @@ assert.equal(pineSource.includes('" approaching " + structureName + " retest sup
 assert.equal(pineSource.includes("array.set(mrLatched, mrStateIndex, true)"), true);
 assert.equal(pineSource.includes("else if array.get(mrLatched, mrStateIndex)"), true);
 assert.equal(pineSource.includes("previousLivePrice < mrActivationBoundary and close >= mrActivationBoundary"), true);
+assert.equal(pineSource.includes("f_latchPendingSupport(support)"), true);
+assert.equal(pineSource.includes("(alertLow <= shortlistReferencePrice or pendingAsSupport)"), true);
+assert.equal(pineSource.includes("supportZones := f_prioritizePendingSupports(supportZones)"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
 assert.equal(pineSource.includes("if array.get(mrLatched, stateIndex) and\n"), false);
 
@@ -36,6 +39,8 @@ const anetMonthlyPath = "/Users/dhavader/Downloads/BATS_ANET, 1M.csv";
 const anetDailyPath = "/Users/dhavader/Downloads/BATS_ANET, 1D.csv";
 const avgoMonthlyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1M.csv";
 const avgoDailyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1D.csv";
+const avgoBreakMonthlyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1M(1).csv";
+const avgoBreakDailyPath = "/Users/dhavader/Downloads/BATS_AVGO, 1D(1).csv";
 const sapMonthlyPath = "/Users/dhavader/Downloads/BATS_SAP, 1M.csv";
 const sapDailyPath = "/Users/dhavader/Downloads/BATS_SAP, 1D.csv";
 
@@ -434,6 +439,17 @@ function crossedBreakDown({ previousLive, live, priorClose, open, low }, level) 
   return live <= level && (liveCross || gapCross || rangeCross);
 }
 
+function updatePendingSupport({
+  pending = false, previousLive, live, support, approachBoundary,
+  breakBoundary, rearmDistance, priorClose, open, low,
+}) {
+  const reached = Number.isFinite(previousLive) && previousLive > support && live <= support;
+  const broken = crossedBreakDown({ previousLive, live, priorClose, open, low }, breakBoundary);
+  if (reached) pending = true;
+  if (live > approachBoundary + rearmDistance || broken) pending = false;
+  return { pending, reached, broken };
+}
+
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 275.64, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), false);
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 271.5, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), true);
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 586.4, priorClose: 570.05, open: 590.31, low: 561.88 }, 579.71), false);
@@ -599,6 +615,86 @@ assert.equal(crossedDown({
   open: avgoToday.open,
   low: avgoToday.low,
 }, avgoM1.center), true);
+
+const avgoBreakDaily = readCsv(avgoBreakDailyPath);
+const avgoBreakTrueRange = avgoBreakDaily.map((bar, index) => index === 0
+  ? bar.high - bar.low
+  : Math.max(
+    bar.high - bar.low,
+    Math.abs(bar.high - avgoBreakDaily[index - 1].close),
+    Math.abs(bar.low - avgoBreakDaily[index - 1].close),
+  ));
+const avgoBreakAtr = rma(avgoBreakTrueRange, 14);
+const avgoBreakConfirmedIndex = avgoBreakDaily.length - 2;
+const avgoBreakAtrPercent = sma(
+  avgoBreakAtr.map((value, index) => value / avgoBreakDaily[index].close * 100),
+  50,
+)[avgoBreakConfirmedIndex];
+const avgoBreakMonthly = readCsv(avgoBreakMonthlyPath).slice(0, -1).slice(-120);
+const avgoBreakM1 = detect(
+  avgoBreakMonthly.map((bar) => ({ price: bar.low, timestamp: bar.time })),
+  avgoBreakAtrPercent * 2,
+  2,
+).filter((zone) => zone.center <= 370)
+  .sort((first, second) => second.center - first.center)[0];
+const avgoBreakConfirmedAtr = avgoBreakAtr[avgoBreakConfirmedIndex];
+const avgoBreakBoundary = avgoBreakM1.center - 0.25 * avgoBreakConfirmedAtr;
+const avgoBreakApproach = avgoBreakM1.center * (1 + Math.max(
+  1,
+  Math.min(7, avgoBreakAtrPercent * 0.75),
+) / 100);
+const avgoAug24 = avgoBreakDaily.at(-3);
+const avgoAug25 = avgoBreakDaily.at(-2);
+const avgoAug26 = avgoBreakDaily.at(-1);
+let avgoPendingLifecycle = updatePendingSupport({
+  previousLive: avgoAug24.close,
+  live: avgoAug25.close,
+  support: avgoBreakM1.center,
+  approachBoundary: avgoBreakApproach,
+  breakBoundary: avgoBreakBoundary,
+  rearmDistance: 0.25 * avgoBreakConfirmedAtr,
+  priorClose: avgoAug24.close,
+  open: avgoAug25.open,
+  low: avgoAug25.low,
+});
+assert.equal(Number(avgoBreakM1.center.toFixed(3)), 358.445);
+assert.equal(Number(avgoBreakConfirmedAtr.toFixed(3)), 14.37);
+assert.equal(Number(avgoBreakBoundary.toFixed(3)), 354.852);
+assert.equal(avgoPendingLifecycle.reached, true);
+assert.equal(avgoPendingLifecycle.broken, false);
+assert.equal(avgoPendingLifecycle.pending, true);
+assert.equal(avgoBreakM1.center <= avgoAug25.close || avgoPendingLifecycle.pending, true);
+avgoPendingLifecycle = updatePendingSupport({
+  pending: avgoPendingLifecycle.pending,
+  previousLive: avgoAug25.close,
+  live: avgoAug26.close,
+  support: avgoBreakM1.center,
+  approachBoundary: avgoBreakApproach,
+  breakBoundary: avgoBreakBoundary,
+  rearmDistance: 0.25 * avgoBreakConfirmedAtr,
+  priorClose: avgoAug25.close,
+  open: avgoAug26.open,
+  low: avgoAug26.low,
+});
+assert.equal(avgoAug26.open > avgoBreakBoundary, true);
+assert.equal(avgoAug26.low < avgoBreakBoundary, true);
+assert.equal(avgoAug26.close < avgoBreakBoundary, true);
+assert.equal(avgoPendingLifecycle.broken, true);
+assert.equal(avgoPendingLifecycle.pending, false);
+const avgoRecoveredLifecycle = updatePendingSupport({
+  pending: true,
+  previousLive: avgoBreakM1.center,
+  live: avgoBreakApproach + 0.25 * avgoBreakConfirmedAtr + 0.01,
+  support: avgoBreakM1.center,
+  approachBoundary: avgoBreakApproach,
+  breakBoundary: avgoBreakBoundary,
+  rearmDistance: 0.25 * avgoBreakConfirmedAtr,
+  priorClose: avgoBreakM1.center,
+  open: avgoBreakM1.center,
+  low: avgoBreakM1.center,
+});
+assert.equal(avgoRecoveredLifecycle.broken, false);
+assert.equal(avgoRecoveredLifecycle.pending, false);
 
 const sapDaily = readCsv(sapDailyPath);
 const sapTrueRange = sapDaily.map((bar, index) => index === 0

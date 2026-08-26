@@ -84,6 +84,32 @@ color resistanceColor = input.color(color.red, "Resistance zone", group = GROUP_
 color retestColor = input.color(color.lime, "Retest support", group = GROUP_STYLE)
 int zoneTransparency = input.int(85, "Zone transparency", 0, 100, group = GROUP_STYLE)
 
+// A reached support remains a displayed and alertable support until its
+// breakdown completes or price recovers above the normal rearm boundary.
+// This preserves multi-session center-to-break transitions such as AVGO.
+varip array<float> pendingSupportCenters = array.new<float>()
+
+f_isPendingSupport(float center) =>
+    bool result = false
+    int count = array.size(pendingSupportCenters)
+    if count > 0
+        for index = 0 to count - 1
+            if math.abs(array.get(pendingSupportCenters, index) - center) <= syminfo.mintick
+                result := true
+                break
+    result
+
+f_latchPendingSupport(float center) =>
+    if not f_isPendingSupport(center)
+        array.push(pendingSupportCenters, center)
+
+f_unlatchPendingSupport(float center) =>
+    int count = array.size(pendingSupportCenters)
+    if count > 0
+        for index = count - 1 to 0
+            if math.abs(array.get(pendingSupportCenters, index) - center) <= syminfo.mintick
+                array.remove(pendingSupportCenters, index)
+
 //──────────────────────────────────────────────────────────────────────────────
 // Pure calculation helpers
 //──────────────────────────────────────────────────────────────────────────────
@@ -358,8 +384,10 @@ f_declutterSupportDestinations(array<Zone> zones) =>
                  (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
             bool isCrowdedPair = not na(distance) and distance <= maximumOverlapGroupSpanPercent
             if isCrowdedPair
-                if f_zoneHasHigherConviction(lower, higher)
-                    lower.highConvictionSupport := true
+                bool lowerHasHigherConviction = f_zoneHasHigherConviction(lower, higher)
+                if f_isPendingSupport(lower.center) or lowerHasHigherConviction
+                    if lowerHasHigherConviction
+                        lower.highConvictionSupport := true
                     array.push(survivors, lower)
                 index += 2
             else
@@ -367,6 +395,16 @@ f_declutterSupportDestinations(array<Zone> zones) =>
         else
             index += 1
     survivors
+
+f_prioritizePendingSupports(array<Zone> zones) =>
+    array<Zone> prioritized = array.new<Zone>()
+    for zone in zones
+        if f_isPendingSupport(zone.center)
+            array.push(prioritized, zone)
+    for zone in zones
+        if not f_isPendingSupport(zone.center)
+            array.push(prioritized, zone)
+    prioritized
 
 // A lower support is explicitly marked high-conviction when it outranks the
 // nearest actionable support. The marker is shared by drawing and alert text.
@@ -638,18 +676,20 @@ float resistanceReferencePrice = math.min(close, nz(previousLivePrice, close))
 if barstate.islast and array.size(detectedZones) > 0 and not na(confirmedDailyAtr)
     for zone in detectedZones
         float alertLow = f_alertLow(zone)
+        bool pendingAsSupport = f_isPendingSupport(zone.center)
         bool latchedAsResistance = f_isLatchedResistance(zone.center)
         bool hasResistanceConfirmation = zone.touches >= minimumResistanceLows
         bool qualifiesAsResistance =
-             hasResistanceConfirmation and
+             not pendingAsSupport and hasResistanceConfirmation and
              (alertLow > resistanceReferencePrice or latchedAsResistance)
-        if alertLow <= shortlistReferencePrice and not qualifiesAsResistance
+        if (alertLow <= shortlistReferencePrice or pendingAsSupport) and not qualifiesAsResistance
             array.push(supportZones, zone)
         if qualifiesAsResistance
             array.push(resistanceZones, zone)
     supportZones := f_sortHighestCenterFirst(supportZones)
     supportZones := f_declutterSupportDestinations(supportZones)
     supportZones := f_sortNearestSupportFirst(supportZones, shortlistReferencePrice, confirmedDailyAtrPercent)
+    supportZones := f_prioritizePendingSupports(supportZones)
     resistanceZones := f_sortNearestResistanceFirst(resistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
     resistanceZones := f_declutterResistanceDestinations(resistanceZones)
 
@@ -990,11 +1030,18 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  (liveCrossedBreakDown or gappedThroughBreak or
                   dailyRangeCrossedBreakDown)
 
+            if crossedSupportDown
+                f_latchPendingSupport(support)
+
             // A meaningful recovery above the approach band rearms every stage.
             if close > approachBoundary + rearmDistance
+                f_unlatchPendingSupport(support)
                 array.set(approachSent, stateIndex, false)
                 array.set(reachedSent, stateIndex, false)
                 array.set(breakSent, stateIndex, false)
+
+            if crossedBreakDown
+                f_unlatchPendingSupport(support)
 
             bool shouldReach =
                  enableReachedAlerts and crossedSupportDown and

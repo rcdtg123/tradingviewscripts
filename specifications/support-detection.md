@@ -169,6 +169,11 @@ scope is exclusively Monthly market structure.
   median Monthly support from above. A new Daily bar opening completely below
   the center is not an exact reach; opening exactly at the center qualifies.
 - Send a break alert only after price falls `0.25 * Daily ATR` below support.
+- When a displayed M support is reached, latch that exact zone as pending
+  support and prioritize it in the displayed/alertable shortlist. Retain it
+  across sessions until its break condition fires or live price recovers above
+  `approach boundary + 0.25 * Daily ATR`. A pending support cannot convert into
+  former-support resistance before this lifecycle completes.
 - Every break path—live crossing, gap-through, and Daily-range traversal—must
   also have current live price at or below the break boundary. Suppress delayed
   fallback alerts after price recovers.

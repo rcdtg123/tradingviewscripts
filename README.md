@@ -160,10 +160,14 @@ sufficiently above the approach band.
 An exact support reach requires an observed falling live-price crossing of the
 displayed center. A new Daily bar opening completely below the center is a gap,
 not an exact reach; opening exactly at the center qualifies. The separate break
-event retains live-price, gap, and Daily-range detection. Every breakdown path
-remains eligible only while live price is still at or below the break boundary,
-which prevents a recovered price from emitting a stale notification based on an
-earlier gap or Daily low. The per-event Daily gate prevents repeats.
+event retains live-price, gap, and Daily-range detection. After an exact reach,
+the same M zone remains displayed and alertable across later sessions until its
+break event fires or price recovers above the normal rearm boundary. This lets a
+gradual decline cross the center on one day and the ATR-adjusted break boundary
+on another. Every breakdown path remains eligible only while live price is still
+at or below that boundary, which prevents a recovered price from emitting a
+stale notification based on an earlier gap or Daily low. The per-event Daily
+gate prevents repeats.
 
 The buy-volume reaction range extends from the normal upper approach boundary
 down to `M center − 0.50 × confirmed Daily ATR`. Buy volume must exceed sell

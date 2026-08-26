@@ -179,7 +179,13 @@ accepting these dates or prices as exact.
     qualifies only while live price remains below it. For META, an open of
     590.31 and low of 561.88 prove traversal of 579.71, but live price 586.40
     suppresses the delayed break. A later live price below 579.71 qualifies.
-22. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+22. For AVGO, reaching M1 358.445 on August 25 while remaining above its
+    354.852 break boundary latches and retains M1 in both display and alert
+    evaluation. On August 26, open 357.12, low 350.06, and live/close 350.77
+    cross that boundary and emit M_BREAK; only then is the pending lifecycle
+    released. Recovery above the normal rearm boundary releases it without a
+    break alert.
+23. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
     197.0038 overlaps established Monthly-low support near 194.93, so established
