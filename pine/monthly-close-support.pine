@@ -677,6 +677,8 @@ if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confi
 
     for zone in detectedMonthlyHighZones
         int mrStateIndex = f_mrStateIndex(zone.center)
+        float mrActivationBoundary = f_resistanceLow(zone, confirmedDailyAtrPercent)
+        float mrRearmBoundary = mrActivationBoundary - rearmDistanceAtr * confirmedDailyAtr
         float historicalConvictionBoundary = zone.center + breakoutConvictionAtr * confirmedDailyAtr
         float historicalInvalidationBoundary = zone.center - rearmDistanceAtr * confirmedDailyAtr
         bool historicalBreakoutIsReconstructible =
@@ -707,9 +709,25 @@ if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confi
             array.set(mrRetestSent, mrStateIndex, false)
             array.set(mrBreakoutVolume, mrStateIndex, na)
             isRetest := false
+        bool approachedMrUpward =
+             not isRetest and not na(previousLivePrice) and
+             previousLivePrice < mrActivationBoundary and close >= mrActivationBoundary
+        if approachedMrUpward
+            array.set(mrLatched, mrStateIndex, true)
+            array.set(mrReachedSent, mrStateIndex, false)
+            array.set(mrBreakoutSent, mrStateIndex, false)
+
+        bool shouldHideAndRearmMr =
+             array.get(mrLatched, mrStateIndex) and not isRetest and
+             close < mrRearmBoundary
+        if shouldHideAndRearmMr
+            array.set(mrLatched, mrStateIndex, false)
+            array.set(mrReachedSent, mrStateIndex, false)
+            array.set(mrBreakoutSent, mrStateIndex, false)
+
         if isRetest
             array.push(retestZones, zone)
-        else if zone.center > resistanceReferencePrice
+        else if array.get(mrLatched, mrStateIndex)
             array.push(monthlyHighResistanceZones, zone)
     monthlyHighResistanceZones := f_sortNearestResistanceFirst(
          monthlyHighResistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
@@ -1163,9 +1181,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
         for mrZone in detectedMonthlyHighZones
             int stateIndex = f_mrStateIndex(mrZone.center)
             float resistance = mrZone.center
-            float approachBoundary = f_resistanceLow(mrZone, confirmedDailyAtrPercent)
             float convictionBoundary = resistance + breakoutConvictionAtr * confirmedDailyAtr
-            float rearmBoundary = approachBoundary - rearmDistance
             float invalidationBoundary = resistance - rearmDistance
 
             bool isVisibleMr = false
@@ -1176,19 +1192,6 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                     if math.abs(visibleCandidate.center - resistance) <= syminfo.mintick
                         isVisibleMr := true
                         break
-            bool wasAbovePrevious =
-                 isVisibleMr and not na(previousLivePrice) and resistance > previousLivePrice
-            bool crossedApproachUp =
-                 wasAbovePrevious and previousLivePrice < approachBoundary and close >= approachBoundary
-            if crossedApproachUp
-                array.set(mrLatched, stateIndex, true)
-
-            bool shouldRearmMr = array.get(mrLatched, stateIndex) and not array.get(mrRetestActive, stateIndex) and close < rearmBoundary
-            if shouldRearmMr
-                array.set(mrLatched, stateIndex, false)
-                array.set(mrReachedSent, stateIndex, false)
-                array.set(mrBreakoutSent, stateIndex, false)
-
             int storedRank = array.get(mrOriginalRank, stateIndex)
             int mrRank = storedRank > 0 ? storedRank : 1
             string structureName = "MR" + str.tostring(mrRank)

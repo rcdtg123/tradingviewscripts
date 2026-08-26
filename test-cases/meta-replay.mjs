@@ -22,7 +22,9 @@ assert.equal(pineSource.includes('"M_BUY_" + str.tostring(buyVolumeTier) + "X"')
 assert.equal(pineSource.includes("buyReactionExtensionAtr * confirmedDailyAtr"), true);
 assert.equal(pineSource.includes("recoveryFromDailyLowAtr >= buyReactionBounceAtr"), true);
 assert.equal(pineSource.includes('" approaching " + structureName + " retest support"'), false);
-assert.equal(pineSource.includes("array.set(mrLatched, stateIndex, true)"), true);
+assert.equal(pineSource.includes("array.set(mrLatched, mrStateIndex, true)"), true);
+assert.equal(pineSource.includes("else if array.get(mrLatched, mrStateIndex)"), true);
+assert.equal(pineSource.includes("previousLivePrice < mrActivationBoundary and close >= mrActivationBoundary"), true);
 assert.equal(pineSource.includes("f_latchResistance(resistance)"), true);
 assert.equal(pineSource.includes("if array.get(mrLatched, stateIndex) and\n"), false);
 
@@ -417,6 +419,14 @@ function crossedDown({ previousLive, live, priorClose, open, low }, level) {
   return liveCross || gapCross || rangeCross;
 }
 
+function updateMrVisibility({ active = false, previousLive, live, lowerBoundary, atr }) {
+  const crossedBoundaryUp = Number.isFinite(previousLive) &&
+    previousLive < lowerBoundary && live >= lowerBoundary;
+  if (crossedBoundaryUp) active = true;
+  if (active && live < lowerBoundary - 0.25 * atr) active = false;
+  return active;
+}
+
 function crossedBreakDown({ previousLive, live, priorClose, open, low }, level) {
   const liveCross = Number.isFinite(previousLive) && previousLive > level && live <= level;
   const gapCross = priorClose > level && open <= level;
@@ -533,6 +543,36 @@ const avgoConfirmedAtrPercent = sma(
   50,
 )[avgoConfirmedIndex];
 const avgoApproachPercent = Math.max(1, Math.min(7, avgoConfirmedAtrPercent * 0.75));
+const avgoMrApproachPercent = avgoApproachPercent;
+const avgoMrLowerBoundary = 353.14 * (1 - avgoMrApproachPercent / 100);
+assert.equal(updateMrVisibility({
+  previousLive: 360,
+  live: 350,
+  lowerBoundary: avgoMrLowerBoundary,
+  atr: avgoAtr[avgoConfirmedIndex],
+}), false);
+let avgoMrVisible = updateMrVisibility({
+  previousLive: avgoMrLowerBoundary - 0.01,
+  live: avgoMrLowerBoundary,
+  lowerBoundary: avgoMrLowerBoundary,
+  atr: avgoAtr[avgoConfirmedIndex],
+});
+assert.equal(avgoMrVisible, true);
+avgoMrVisible = updateMrVisibility({
+  active: avgoMrVisible,
+  previousLive: avgoMrLowerBoundary,
+  live: 353.14,
+  lowerBoundary: avgoMrLowerBoundary,
+  atr: avgoAtr[avgoConfirmedIndex],
+});
+assert.equal(avgoMrVisible, true);
+assert.equal(updateMrVisibility({
+  active: avgoMrVisible,
+  previousLive: avgoMrLowerBoundary,
+  live: avgoMrLowerBoundary - 0.25 * avgoAtr[avgoConfirmedIndex] - 0.01,
+  lowerBoundary: avgoMrLowerBoundary,
+  atr: avgoAtr[avgoConfirmedIndex],
+}), false);
 const avgoMonthly = readCsv(avgoMonthlyPath).slice(0, -1).slice(-120);
 const avgoLowZones = detect(
   avgoMonthly.map((bar) => ({ price: bar.low, timestamp: bar.time })),
