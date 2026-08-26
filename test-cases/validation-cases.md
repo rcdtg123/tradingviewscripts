@@ -169,7 +169,11 @@ accepting these dates or prices as exact.
 19. A gap from above an M-break boundary to an open below it qualifies only
     while live price remains at or below that boundary. If price has recovered
     above it before the script evaluates the symbol, suppress the stale break.
-20. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
+20. A Daily bar that opened above the break boundary and traded below it also
+    qualifies only while live price remains below it. For META, an open of
+    590.31 and low of 561.88 prove traversal of 579.71, but live price 586.40
+    suppresses the delayed break. A later live price below 579.71 qualifies.
+21. For SAP with confirmed smoothed Daily ATR% near 3.738%, the `1.0×` MR limit
     splits the former 212.98–221.24 high cluster because its full width is about
     3.80%. Do not reconstruct RT1 214.94. The next reconstructible MR near
     197.0038 overlaps established Monthly-low support near 194.93, so established

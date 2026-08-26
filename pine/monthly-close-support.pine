@@ -963,14 +963,14 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                  previousLivePrice > breakBoundary and close <= breakBoundary
             bool gappedThroughBreak =
                  priorExtendedDailyClose > breakBoundary and
-                 currentExtendedDailyOpen <= breakBoundary and
-                 close <= breakBoundary
+                 currentExtendedDailyOpen <= breakBoundary
             bool dailyRangeCrossedBreakDown =
                  currentExtendedDailyOpen > breakBoundary and
                  currentExtendedDailyLow <= breakBoundary
             bool crossedBreakDown =
-                 liveCrossedBreakDown or gappedThroughBreak or
-                 dailyRangeCrossedBreakDown
+                 close <= breakBoundary and
+                 (liveCrossedBreakDown or gappedThroughBreak or
+                  dailyRangeCrossedBreakDown)
 
             // A meaningful recovery above the approach band rearms every stage.
             if close > approachBoundary + rearmDistance

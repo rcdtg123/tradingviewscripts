@@ -16,7 +16,7 @@ assert.equal(pineSource.includes('f_shouldSendDailyAlert("R_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("MR_REACHED"'), true);
 assert.equal(pineSource.includes('f_shouldSendDailyAlert("M_REACHED"'), true);
 assert.equal(pineSource.includes('alertcondition(approachEvent'), true);
-assert.equal(pineSource.includes("currentExtendedDailyOpen <= breakBoundary and\n                 close <= breakBoundary"), true);
+assert.equal(pineSource.includes("close <= breakBoundary and\n                 (liveCrossedBreakDown or gappedThroughBreak or"), true);
 assert.equal(pineSource.includes("request.footprint(100, 70, 300)"), true);
 assert.equal(pineSource.includes('"M_BUY_" + str.tostring(buyVolumeTier) + "X"'), true);
 assert.equal(pineSource.includes("buyReactionExtensionAtr * confirmedDailyAtr"), true);
@@ -419,13 +419,15 @@ function crossedDown({ previousLive, live, priorClose, open, low }, level) {
 
 function crossedBreakDown({ previousLive, live, priorClose, open, low }, level) {
   const liveCross = Number.isFinite(previousLive) && previousLive > level && live <= level;
-  const gapCross = priorClose > level && open <= level && live <= level;
+  const gapCross = priorClose > level && open <= level;
   const rangeCross = open > level && low <= level;
-  return liveCross || gapCross || rangeCross;
+  return live <= level && (liveCross || gapCross || rangeCross);
 }
 
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 275.64, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), false);
 assert.equal(crossedBreakDown({ previousLive: NaN, live: 271.5, priorClose: 276.27, open: 270.755, low: 269.28 }, 272.72), true);
+assert.equal(crossedBreakDown({ previousLive: NaN, live: 586.4, priorClose: 570.05, open: 590.31, low: 561.88 }, 579.71), false);
+assert.equal(crossedBreakDown({ previousLive: NaN, live: 573.71, priorClose: 570.05, open: 590.31, low: 561.88 }, 579.71), true);
 
 function supportBuyVolumeSignal({
   live, support, approach, atr, dailyLow, buyVolume, sellVolume,

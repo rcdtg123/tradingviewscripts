@@ -163,8 +163,9 @@ scope is exclusively Monthly market structure.
   median Monthly support from above. A new Daily bar opening completely below
   the center is not an exact reach; opening exactly at the center qualifies.
 - Send a break alert only after price falls `0.25 * Daily ATR` below support.
-- A gap-through break qualifies only while current live price remains at or
-  below that break boundary; suppress a late gap alert after price recovers.
+- Every break path—live crossing, gap-through, and Daily-range traversal—must
+  also have current live price at or below the break boundary. Suppress delayed
+  fallback alerts after price recovers.
 - Rising into an approach band or upward through support from below never
   triggers an approach, reached, or break alert.
 - Do not repeat a stage while price remains near the same zone.
