@@ -99,8 +99,9 @@ The displayed boundaries and alert boundaries are identical.
 ## Strength and decluttering
 
 Nearby structural levels can otherwise create overlapping boxes and redundant
-alerts. The indicator therefore declutters candidates within a 10% neighborhood
-by default before assigning visible level numbers.
+alerts. The indicator derives a volatility-adjusted decluttering span as
+`2.75 × smoothed Daily ATR%`, capped at a hard maximum of 10%, before assigning
+visible level numbers.
 
 Support decluttering preserves two complementary roles without transitive
 chaining:
@@ -109,16 +110,24 @@ chaining:
    approach and reached alerts.
 2. Adjacent candidates are evaluated as non-transitive pairs, preventing a
    middle level from collapsing two otherwise distinct support destinations.
-3. When a paired lower support has greater conviction, it is also retained and
-   marked `HC` for high conviction.
-4. Conviction ranks greater Monthly touch count first, then greater temporal
+3. When a paired lower support has greater conviction, it is initially retained
+   and marked `HC` for high conviction.
+4. A second pass compacts a crowded pair to its structural winner only when
+   both levels have at least four Monthly confirmations. This identifies mature
+   consolidation without removing a newly actionable two-touch level such as
+   META 522.xx.
+5. Existing `HC` zones and reached supports awaiting breakdown are never
+   removed. Visible limits reserve capacity for them before ordinary zones.
+6. Conviction ranks greater Monthly touch count first, then greater temporal
    spread, then a narrower historical cluster.
 
 Resistance decluttering mirrors the support policy: the nearest resistance is
 actionable, candidates are evaluated as non-transitive adjacent pairs, and a
 stronger paired higher level is retained with an `HC` marker. Cross-family
-arbitration compares only an overlapping `R` against an `MR`; conviction wins,
-with `MR` preferred on an exact conviction tie.
+arbitration compares an overlapping `R` against an `MR`; conviction wins, with
+`MR` preferred on an exact conviction tie. The final combined resistance list
+then compacts disjoint mature pairs using the same dynamic span. No existing
+`HC` resistance can be filtered out.
 
 This preserves timely alerts at the nearest support or resistance without
 losing an important stronger destination beyond it. Suppressed zones are neither
@@ -244,7 +253,9 @@ old alert and create it again so the latest logic is used.
 | Visible `R` zones | 3 |
 | Minimum Monthly highs for `MR` | 2 |
 | Visible `MR` zones | 5 |
-| Decluttering neighborhood | 10% |
+| Minimum confirmations per consolidated level | 4 Monthly candles |
+| Decluttering span multiplier | 2.75 × smoothed Daily ATR% |
+| Decluttering span hard maximum | 10% |
 | Break/rearm distance | 0.25 Daily ATR |
 | Breakout conviction distance | 0.25 Daily ATR |
 
@@ -272,6 +283,9 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
 - [`test-cases/meta-replay.mjs`](test-cases/meta-replay.mjs) reproduces key META
   price-path behavior plus SNPS resistance and PLAB timeframe-normalization
   regressions against exported TradingView data.
+- [`test-cases/declutter-regression.mjs`](test-cases/declutter-regression.mjs)
+  verifies ADSK consolidation, unchanged MU supports, META transitional-support
+  preservation, dynamic-span capping, and HC-safe resistance compaction.
 
 ## Architecture
 

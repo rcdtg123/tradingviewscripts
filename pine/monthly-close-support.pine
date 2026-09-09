@@ -61,7 +61,9 @@ int displayedZones = input.int(5, "Nearest support zones to display", 1, 10, gro
 int displayedResistanceZones = input.int(3, "Nearest resistance zones to display", 1, 10, group = GROUP_QUALIFICATION)
 int minimumMonthlyHighs = input.int(2, "Minimum Monthly highs for MR", 2, 20, group = GROUP_QUALIFICATION)
 int displayedMonthlyHighZones = input.int(5, "Nearest MR zones to display", 1, 10, group = GROUP_QUALIFICATION)
-float maximumOverlapGroupSpanPercent = input.float(10.0, "Maximum overlap-group span %", 0.25, 25.0, 0.25, group = GROUP_QUALIFICATION)
+int minimumDeclutterTouches = input.int(4, "Minimum Monthly touches per consolidated level", 2, 20, group = GROUP_QUALIFICATION)
+float overlapGroupAtrMultiplier = input.float(2.75, "Overlap-group span × Daily ATR%", 0.25, 10.0, 0.25, group = GROUP_QUALIFICATION)
+float maximumOverlapGroupSpanPercent = input.float(10.0, "Maximum overlap-group span %", 0.25, 10.0, 0.25, group = GROUP_QUALIFICATION)
 
 string GROUP_ALERTS = "3. Alerts"
 bool enableApproachAlerts = input.bool(true, "Alert when live price enters approach zone", group = GROUP_ALERTS)
@@ -364,12 +366,10 @@ f_sortHighestCenterFirst(array<Zone> zones) =>
                 array.set(sorted, highestIndex, temporary)
     sorted
 
-// Support decluttering is deliberately non-transitive. Resolve adjacent pairs
-// from highest to lowest so an intermediate level cannot chain two otherwise
-// distinct destinations into one oversized neighborhood. Always preserve the
-// higher (nearer) member. Preserve and mark the lower member too when it has
-// greater Monthly conviction; otherwise suppress only that paired lower member.
-f_declutterSupportDestinations(array<Zone> zones) =>
+// Baseline support decluttering preserves both the nearest actionable member
+// and a stronger lower HC member. A second, consolidation-specific pass below
+// may compact them when both represent repeated multi-month structures.
+f_declutterSupportDestinations(array<Zone> zones, float overlapSpanPercent) =>
     array<Zone> survivors = array.new<Zone>()
     int count = array.size(zones)
     for zone in zones
@@ -382,7 +382,7 @@ f_declutterSupportDestinations(array<Zone> zones) =>
             Zone lower = array.get(zones, index + 1)
             float distance = higher.center != 0.0 ?
                  (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
-            bool isCrowdedPair = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            bool isCrowdedPair = not na(distance) and distance <= overlapSpanPercent
             if isCrowdedPair
                 bool lowerHasHigherConviction = f_zoneHasHigherConviction(lower, higher)
                 if f_isPendingSupport(lower.center) or lowerHasHigherConviction
@@ -393,6 +393,49 @@ f_declutterSupportDestinations(array<Zone> zones) =>
             else
                 index += 1
         else
+            index += 1
+    survivors
+
+// Compact only mature consolidation pairs. Requiring repeated confirmation on
+// both members prevents a newly actionable two-touch support (for example
+// META 522.xx) from being erased by a stronger lower HC destination. Pairs are
+// disjoint and non-transitive, and pending supports are never suppressed.
+f_compactEstablishedSupportDestinations(array<Zone> zones, float overlapSpanPercent) =>
+    array<Zone> survivors = array.new<Zone>()
+    int count = array.size(zones)
+    int index = 0
+    while index < count
+        Zone higher = array.get(zones, index)
+        if index + 1 < count
+            Zone lower = array.get(zones, index + 1)
+            float distance = higher.center != 0.0 ?
+                 (higher.center - lower.center) / math.abs(higher.center) * 100.0 : na
+            bool bothMature = higher.touches >= minimumDeclutterTouches and lower.touches >= minimumDeclutterTouches
+            bool isCrowdedPair =
+                 bothMature and not na(distance) and distance <= overlapSpanPercent
+            if isCrowdedPair
+                bool higherIsPending = f_isPendingSupport(higher.center)
+                bool lowerIsPending = f_isPendingSupport(lower.center)
+                bool higherIsHighConviction = higher.highConvictionSupport
+                bool lowerIsHighConviction = lower.highConvictionSupport
+                bool noPriorityMember = not higherIsPending and not lowerIsPending and not higherIsHighConviction and not lowerIsHighConviction
+                if higherIsPending or higherIsHighConviction
+                    array.push(survivors, higher)
+                if lowerIsPending or lowerIsHighConviction
+                    array.push(survivors, lower)
+                if noPriorityMember
+                    bool lowerWins = f_zoneHasHigherConviction(lower, higher)
+                    if lowerWins
+                        lower.highConvictionSupport := true
+                        array.push(survivors, lower)
+                    else
+                        array.push(survivors, higher)
+                index += 2
+            else
+                array.push(survivors, higher)
+                index += 1
+        else
+            array.push(survivors, higher)
             index += 1
     survivors
 
@@ -412,7 +455,7 @@ f_isHighConvictionSupport(array<Zone> zones, int index) =>
     index >= 0 and index < array.size(zones) and
          array.get(zones, index).highConvictionSupport
 
-f_declutterResistanceDestinations(array<Zone> zones) =>
+f_declutterResistanceDestinations(array<Zone> zones, float overlapSpanPercent) =>
     array<Zone> survivors = array.new<Zone>()
     int count = array.size(zones)
     for zone in zones
@@ -425,7 +468,7 @@ f_declutterResistanceDestinations(array<Zone> zones) =>
             Zone higher = array.get(zones, index + 1)
             float distance = lower.center != 0.0 ?
                  (higher.center - lower.center) / math.abs(lower.center) * 100.0 : na
-            bool isCrowdedPair = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+            bool isCrowdedPair = not na(distance) and distance <= overlapSpanPercent
             if isCrowdedPair
                 if f_zoneHasHigherConviction(higher, lower)
                     higher.highConvictionResistance := true
@@ -459,7 +502,7 @@ f_sortResistanceCandidatesAscending(array<ResistanceCandidate> candidates) =>
 // Same-family lists have already been decluttered. Cross-family arbitration
 // therefore resolves only overlapping R/MR pairs and never compares two R or two
 // MR candidates again. Conviction outranks type; MR is a tie-breaker only.
-f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZones) =>
+f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZones, float overlapSpanPercent) =>
     array<ResistanceCandidate> combined = array.new<ResistanceCandidate>()
     for zone in oldResistanceZones
         array.push(combined, ResistanceCandidate.new(zone, false))
@@ -480,9 +523,11 @@ f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZone
                 float distance = lower.zone.center != 0.0 ?
                      (higher.zone.center - lower.zone.center) / math.abs(lower.zone.center) * 100.0 : na
                 bool crossFamilyPair = lower.isMonthlyHigh != higher.isMonthlyHigh
-                bool insideLimit = not na(distance) and distance <= maximumOverlapGroupSpanPercent
+                bool bothHighConviction =
+                     lower.zone.highConvictionResistance and higher.zone.highConvictionResistance
+                bool insideLimit = not na(distance) and distance <= overlapSpanPercent
                 bool closerThanCurrent = not na(distance) and (na(closestDistance) or distance < closestDistance)
-                if crossFamilyPair and insideLimit and closerThanCurrent
+                if crossFamilyPair and not bothHighConviction and insideLimit and closerThanCurrent
                     closestPairIndex := lowerIndex
                     closestHigherIndex := higherIndex
                     closestDistance := distance
@@ -490,15 +535,94 @@ f_arbitrateResistanceFamilies(array<Zone> oldResistanceZones, array<Zone> mrZone
         if canConsolidate
             ResistanceCandidate lower = array.get(combined, closestPairIndex)
             ResistanceCandidate higher = array.get(combined, closestHigherIndex)
+            bool lowerIsHighConviction = lower.zone.highConvictionResistance
+            bool higherIsHighConviction = higher.zone.highConvictionResistance
             bool higherStronger = f_zoneHasHigherConviction(higher.zone, lower.zone)
             bool lowerStronger = f_zoneHasHigherConviction(lower.zone, higher.zone)
             bool equalStrength = f_equalConviction(lower.zone, higher.zone)
             bool higherWinsTie = equalStrength and higher.isMonthlyHigh and not lower.isMonthlyHigh
-            int removeIndex = higherStronger or higherWinsTie ? closestPairIndex : closestHigherIndex
-            if not higherStronger and not lowerStronger and not higherWinsTie
-                removeIndex := lower.isMonthlyHigh ? closestHigherIndex : closestPairIndex
+            int removeIndex = closestHigherIndex
+            if lowerIsHighConviction != higherIsHighConviction
+                removeIndex := lowerIsHighConviction ? closestHigherIndex : closestPairIndex
+            else
+                removeIndex := higherStronger or higherWinsTie ? closestPairIndex : closestHigherIndex
+                if not higherStronger and not lowerStronger and not higherWinsTie
+                    removeIndex := lower.isMonthlyHigh ? closestHigherIndex : closestPairIndex
             array.remove(combined, removeIndex)
     combined
+
+// Cross-family arbitration can make two same-family survivors newly adjacent.
+// Compact the final combined resistance list once, again as disjoint pairs.
+// Existing HC members are never removed; MR wins only an exact non-HC tie.
+f_compactFinalResistanceDestinations(array<ResistanceCandidate> candidates, float overlapSpanPercent) =>
+    array<ResistanceCandidate> sorted = f_sortResistanceCandidatesAscending(candidates)
+    array<ResistanceCandidate> survivors = array.new<ResistanceCandidate>()
+    int count = array.size(sorted)
+    int index = 0
+    while index < count
+        ResistanceCandidate lower = array.get(sorted, index)
+        if index + 1 < count
+            ResistanceCandidate higher = array.get(sorted, index + 1)
+            float distance = lower.zone.center != 0.0 ?
+                 (higher.zone.center - lower.zone.center) / math.abs(lower.zone.center) * 100.0 : na
+            bool bothMature = lower.zone.touches >= minimumDeclutterTouches and higher.zone.touches >= minimumDeclutterTouches
+            bool isCrowdedPair =
+                 bothMature and not na(distance) and distance <= overlapSpanPercent
+            if isCrowdedPair
+                bool lowerIsHighConviction = lower.zone.highConvictionResistance
+                bool higherIsHighConviction = higher.zone.highConvictionResistance
+                if lowerIsHighConviction and higherIsHighConviction
+                    array.push(survivors, lower)
+                    array.push(survivors, higher)
+                else if lowerIsHighConviction
+                    array.push(survivors, lower)
+                else if higherIsHighConviction
+                    array.push(survivors, higher)
+                else
+                    bool higherStronger = f_zoneHasHigherConviction(higher.zone, lower.zone)
+                    bool lowerStronger = f_zoneHasHigherConviction(lower.zone, higher.zone)
+                    bool equalStrength = f_equalConviction(lower.zone, higher.zone)
+                    bool higherWinsTie = equalStrength and higher.isMonthlyHigh and not lower.isMonthlyHigh
+                    bool higherWins = higherStronger or higherWinsTie
+                    if not higherStronger and not lowerStronger and not higherWinsTie
+                        higherWins := higher.isMonthlyHigh and not lower.isMonthlyHigh
+                    if higherWins
+                        Zone winningZone = higher.zone
+                        winningZone.highConvictionResistance := true
+                        array.push(survivors, ResistanceCandidate.new(winningZone, higher.isMonthlyHigh))
+                    else
+                        array.push(survivors, lower)
+                index += 2
+            else
+                array.push(survivors, lower)
+                index += 1
+        else
+            array.push(survivors, lower)
+            index += 1
+    survivors
+
+// Visible caps limit ordinary zones, but never discard HC zones or a pending
+// support whose multi-session breakdown lifecycle is still active.
+f_limitZonesPreservingPriority(array<Zone> zones, int maximumCount, bool supportMode) =>
+    array<Zone> limited = array.new<Zone>()
+    int priorityCount = 0
+    for zone in zones
+        bool isPriority = supportMode ?
+             (zone.highConvictionSupport or f_isPendingSupport(zone.center)) :
+             zone.highConvictionResistance
+        if isPriority
+            priorityCount += 1
+    int ordinarySlots = math.max(maximumCount - priorityCount, 0)
+    int ordinaryUsed = 0
+    for zone in zones
+        bool isPriority = supportMode ?
+             (zone.highConvictionSupport or f_isPendingSupport(zone.center)) :
+             zone.highConvictionResistance
+        if isPriority or ordinaryUsed < ordinarySlots
+            array.push(limited, zone)
+            if not isPriority
+                ordinaryUsed += 1
+    limited
 
 f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>
     if na(firstCenter) or na(secondCenter)
@@ -585,6 +709,9 @@ if newConfirmedMonth and not na(confirmedMonthlyLow) and not na(confirmedMonthly
 
 float maximumClusterWidthPercent = confirmedDailyAtrPercent * clusterMultiplier
 float maximumMonthlyHighClusterWidthPercent = confirmedDailyAtrPercent * monthlyHighClusterMultiplier
+float effectiveOverlapGroupSpanPercent = math.min(
+     maximumOverlapGroupSpanPercent,
+     overlapGroupAtrMultiplier * confirmedDailyAtrPercent)
 array<Zone> detectedZones = array.new<Zone>()
 array<Zone> detectedMonthlyHighZones = array.new<Zone>()
 if barstate.islast and array.size(monthlyLowObservations) >= minimumLows and not na(maximumClusterWidthPercent)
@@ -687,15 +814,19 @@ if barstate.islast and array.size(detectedZones) > 0 and not na(confirmedDailyAt
         if qualifiesAsResistance
             array.push(resistanceZones, zone)
     supportZones := f_sortHighestCenterFirst(supportZones)
-    supportZones := f_declutterSupportDestinations(supportZones)
+    supportZones := f_declutterSupportDestinations(supportZones, effectiveOverlapGroupSpanPercent)
+    supportZones := f_compactEstablishedSupportDestinations(
+         supportZones, effectiveOverlapGroupSpanPercent)
     supportZones := f_sortNearestSupportFirst(supportZones, shortlistReferencePrice, confirmedDailyAtrPercent)
     supportZones := f_prioritizePendingSupports(supportZones)
+    supportZones := f_limitZonesPreservingPriority(supportZones, displayedZones, true)
     resistanceZones := f_sortNearestResistanceFirst(resistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
-    resistanceZones := f_declutterResistanceDestinations(resistanceZones)
+    resistanceZones := f_declutterResistanceDestinations(
+         resistanceZones, effectiveOverlapGroupSpanPercent)
 
     // Alerts and drawings intentionally consume the same visible shortlist.
     // A qualified zone outside this list remains internal and cannot alert.
-    int visibleZoneCount = math.min(displayedZones, array.size(supportZones))
+    int visibleZoneCount = array.size(supportZones)
     if visibleZoneCount > 0
         for index = 0 to visibleZoneCount - 1
             Zone zone = array.get(supportZones, index)
@@ -732,7 +863,7 @@ if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confi
             array.set(mrBreakoutVolume, mrStateIndex, na)
 
         bool overlapsEstablishedMonthlySupport = false
-        int visibleSupportCount = math.min(displayedZones, array.size(supportZones))
+        int visibleSupportCount = array.size(supportZones)
         if visibleSupportCount > 0
             for supportIndex = 0 to visibleSupportCount - 1
                 Zone supportZone = array.get(supportZones, supportIndex)
@@ -753,9 +884,19 @@ if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confi
             array.push(monthlyHighResistanceZones, zone)
     monthlyHighResistanceZones := f_sortNearestResistanceFirst(
          monthlyHighResistanceZones, resistanceReferencePrice, confirmedDailyAtrPercent)
-    monthlyHighResistanceZones := f_declutterResistanceDestinations(monthlyHighResistanceZones)
+    monthlyHighResistanceZones := f_declutterResistanceDestinations(
+         monthlyHighResistanceZones, effectiveOverlapGroupSpanPercent)
+    while array.size(retestZones) > displayedMonthlyHighZones
+        array.pop(retestZones)
+
+// Arbitrate and compact even when a symbol currently has only one resistance
+// family. Priority members can intentionally make a list exceed its ordinary
+// visible cap.
+if barstate.islast
     array<ResistanceCandidate> resistanceSurvivors = f_arbitrateResistanceFamilies(
-         resistanceZones, monthlyHighResistanceZones)
+         resistanceZones, monthlyHighResistanceZones, effectiveOverlapGroupSpanPercent)
+    resistanceSurvivors := f_compactFinalResistanceDestinations(
+         resistanceSurvivors, effectiveOverlapGroupSpanPercent)
     array.clear(resistanceZones)
     array.clear(monthlyHighResistanceZones)
     for survivor in resistanceSurvivors
@@ -763,10 +904,10 @@ if barstate.islast and array.size(detectedMonthlyHighZones) > 0 and not na(confi
             array.push(monthlyHighResistanceZones, survivor.zone)
         else
             array.push(resistanceZones, survivor.zone)
-    while array.size(monthlyHighResistanceZones) > displayedMonthlyHighZones
-        array.pop(monthlyHighResistanceZones)
-    while array.size(retestZones) > displayedMonthlyHighZones
-        array.pop(retestZones)
+    resistanceZones := f_limitZonesPreservingPriority(
+         resistanceZones, displayedResistanceZones, false)
+    monthlyHighResistanceZones := f_limitZonesPreservingPriority(
+         monthlyHighResistanceZones, displayedMonthlyHighZones, false)
 
 //──────────────────────────────────────────────────────────────────────────────
 // Rendering: consumers of detector output only
@@ -789,7 +930,7 @@ f_clearDrawings() =>
 
 if barstate.islast
     f_clearDrawings()
-    int countToDraw = math.min(displayedZones, array.size(supportZones))
+    int countToDraw = array.size(supportZones)
     if countToDraw > 0
         for index = 0 to countToDraw - 1
             Zone zone = array.get(supportZones, index)
@@ -829,7 +970,7 @@ if barstate.islast
             array.push(renderedLines, centerLine)
             array.push(renderedLabels, zoneLabel)
 
-    int resistanceCountToDraw = math.min(displayedResistanceZones, array.size(resistanceZones))
+    int resistanceCountToDraw = array.size(resistanceZones)
     if resistanceCountToDraw > 0
         for index = 0 to resistanceCountToDraw - 1
             Zone zone = array.get(resistanceZones, index)
@@ -867,7 +1008,7 @@ if barstate.islast
             array.push(renderedLines, centerLine)
             array.push(renderedLabels, zoneLabel)
 
-    int mrCountToDraw = math.min(displayedMonthlyHighZones, array.size(monthlyHighResistanceZones))
+    int mrCountToDraw = array.size(monthlyHighResistanceZones)
     if mrCountToDraw > 0
         for index = 0 to mrCountToDraw - 1
             Zone zone = array.get(monthlyHighResistanceZones, index)
@@ -975,7 +1116,7 @@ bool mrBreakoutEvent = false
 bool mrRetestEvent = false
 
 if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
-    int liveZoneCount = math.min(displayedZones, array.size(supportZones))
+    int liveZoneCount = array.size(supportZones)
     float rearmDistance = rearmDistanceAtr * confirmedDailyAtr
 
     if liveZoneCount > 0
@@ -1107,7 +1248,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                     supportBuyVolumeEvent := true
                     alert(buyVolumeMessage, alert.freq_all)
 
-    int liveResistanceCount = math.min(displayedResistanceZones, array.size(resistanceZones))
+    int liveResistanceCount = array.size(resistanceZones)
     float volumeMultiple =
          not na(prior20DayAverageExtendedVolume) and prior20DayAverageExtendedVolume > 0.0 ?
          currentExtendedDailyVolume / prior20DayAverageExtendedVolume : na
@@ -1199,7 +1340,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                     alert(breakoutMessage8x, alert.freq_all)
 
     // Monthly-high resistance owns its consolidated component lifecycle.
-    int visibleMrCount = math.min(displayedMonthlyHighZones, array.size(monthlyHighResistanceZones))
+    int visibleMrCount = array.size(monthlyHighResistanceZones)
     if visibleMrCount > 0
         for rankIndex = 0 to visibleMrCount - 1
             Zone rankedZone = array.get(monthlyHighResistanceZones, rankIndex)

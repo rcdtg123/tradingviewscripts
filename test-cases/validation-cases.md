@@ -58,8 +58,9 @@ accepting these dates or prices as exact.
 3. For equal-distance zones, prefer greater temporal spread, then more touches,
    then the narrower zone.
 4. Resolve support candidates as non-transitive adjacent pairs from highest to
-   lowest. Retain each pair's higher member as actionable and retain its lower
-   member as `HC` only when the lower member has greater conviction.
+   lowest using `min(10%, 2.75 × smoothed Daily ATR%)`. Retain each pair's
+   higher member as actionable and retain its lower member as `HC` when the
+   lower member has greater conviction.
 5. A chain of individually close supports must not collapse distinct endpoints
    whose direct separation exceeds 10% merely because intermediate levels bridge
    them.
@@ -83,6 +84,18 @@ accepting these dates or prices as exact.
 12. For META near 568, the 522.xx intermediate candidate must not transitively
     group 553.xx with 477.xx. The visible supports begin near 553.xx and 477.xx,
     not 553.xx and 339.xx.
+13. For ADSK near 212.21, smoothed Daily ATR% is approximately 3.956%, so the
+    effective decluttering span is capped at 10%. Mature supports 199.63
+    (`11xM`) and 186.29 (`15xM`) are 6.68% apart. Retain only 186.29 as `M1 HC`,
+    followed by approximately 170.75, 147.25, and 125.63.
+14. For MU near 1,000.26, smoothed Daily ATR% is approximately 8.50%, so the
+    effective span is also capped at 10%. The closest candidate pair among the
+    first five is 352.05 versus 303.18 at 13.88%; preserve the visible sequence
+    770.10, 352.05, 303.18, 207.14, and 105.72.
+15. For META after 553.xx breaks, preserve the two-touch 522.375 actionable
+    support alongside the stronger 477.90 HC support. The mature-consolidation
+    pass must not compact a pair unless both members have at least four Monthly
+    confirmations.
 
 ## Resistance and volume-breakout cases
 
@@ -117,9 +130,10 @@ accepting these dates or prices as exact.
    center at their median; a developing Monthly high never participates.
 2. Display the nearest five MR centers strictly above live price. Never display
    an MR center below price, including while it remains latched internally.
-3. After same-family pairwise decluttering, compare only overlapping cross-family
-   R/MR candidates within 10%. Display the higher-conviction member and prefer
-   MR only on an exact strength tie.
+3. After same-family pairwise decluttering, compare overlapping cross-family
+   R/MR candidates within `min(10%, 2.75 × smoothed Daily ATR%)`. Display the
+   higher-conviction member and prefer MR only on an exact strength tie. An HC
+   candidate must never be removed in favor of a non-HC candidate.
 4. Rising entry into the surviving MR latches it internally but emits no
    approach notification. Suppressed R mechanisms emit no duplicates.
 5. At `MR + 0.25 * Daily ATR` and actual extended-session volume of 5.00x,
