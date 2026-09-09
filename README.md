@@ -22,15 +22,15 @@ Despite the historical filename, support detection now uses completed Monthly
 
 ## Detected market structure
 
-### Monthly support: M1-M5
+### Monthly support: M1-M3
 
 - Uses completed Monthly candle lows only.
 - Examines the latest 120 completed Monthly candles by default.
 - Requires at least two qualifying Monthly lows.
 - Uses the median qualifying low as the level center.
-- Displays up to five surviving support zones below or containing live price.
+- Displays up to three surviving support zones below or containing live price.
 - Numbers levels by proximity after decluttering: `M1` is the nearest surviving
-  Monthly support, followed by `M2` through `M5`.
+  Monthly support, followed by `M2` and `M3`.
 - Two-touch zones are Developing and orange; zones with three or more touches
   are Established and blue.
 
@@ -44,12 +44,12 @@ fallen below it. These zones:
 - Use red boxes and labels.
 - Retain the historical strength of the original support cluster.
 
-### Monthly-high resistance: MR1-MR5
+### Monthly-high resistance: MR1-MR3
 
 - Uses completed Monthly candle highs only.
 - Requires at least two qualifying Monthly highs by default.
-- Displays up to five surviving resistance zones strictly above live price.
-- Numbers levels by proximity as `MR1` through `MR5`.
+- Displays up to three surviving resistance zones strictly above live price.
+- Numbers levels by proximity as `MR1` through `MR3`.
 - Uses red boxes and labels because both `R` and `MR` represent resistance.
 
 ### Retest support
@@ -187,7 +187,7 @@ interval; unavailable footprint data produces no substitute alert.
 
 ### Resistance alerts
 
-- Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
+- Displayed `R1`–`R3` and `MR1`–`MR3` zones do not emit resistance-approach
   notifications. Their entry crossings remain tracked internally because the
   existing volume-confirmed breakout workflows depend on those latches.
 - A rising live price that reaches or crosses the exact center of a displayed

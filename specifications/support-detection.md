@@ -9,8 +9,8 @@ scope is exclusively Monthly market structure.
 ## Monthly-high resistance and cross-family priority
 
 - Cluster completed Monthly highs using the same volatility-normalized detector.
-- Require two Monthly highs by default and display the nearest five strictly
-  above live price as `MR1` through `MR5`.
+- Require two Monthly highs by default and display the nearest three strictly
+  above live price as `MR1` through `MR3`.
 - When an R and MR candidate overlap within the volatility-adjusted
   decluttering span, retain the higher-conviction
   member. MR preference applies only when conviction ties; same-family
@@ -122,7 +122,7 @@ scope is exclusively Monthly market structure.
   disappearing merely because a stronger lower destination is nearby.
 - Apply grouping to the complete qualifying candidate list before taking the
   visible shortlist, so lower distinct regions are not accidentally omitted.
-- Display the five nearest surviving support/current regions by default.
+- Display the three nearest surviving support/current regions by default.
 - Resolve adjacent resistance pairs from lowest to highest without transitive
   chaining. Always preserve the lower center as the nearest actionable
   resistance. If its paired higher member has greater conviction, preserve that
@@ -213,7 +213,7 @@ scope is exclusively Monthly market structure.
 
 ## Resistance and breakout alerts
 
-- Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
+- Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR3`.
   Continue detecting and latching their upward approach internally so both
   volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
 - Send `R_REACHED` or `MR_REACHED` only when rising live price reaches/crosses

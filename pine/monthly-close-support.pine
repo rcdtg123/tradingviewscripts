@@ -57,10 +57,10 @@ float maximumApproachPercent = input.float(7.0, "Maximum approach width %", 0.25
 string GROUP_QUALIFICATION = "2. Qualification and ranking"
 int minimumLows = input.int(2, "Minimum Monthly lows", 2, 20, group = GROUP_QUALIFICATION)
 int minimumResistanceLows = input.int(4, "Minimum Monthly lows for resistance", 2, 20, group = GROUP_QUALIFICATION)
-int displayedZones = input.int(5, "Nearest support zones to display", 1, 10, group = GROUP_QUALIFICATION)
+int displayedZones = input.int(3, "Nearest support zones to display", 1, 10, group = GROUP_QUALIFICATION)
 int displayedResistanceZones = input.int(3, "Nearest resistance zones to display", 1, 10, group = GROUP_QUALIFICATION)
 int minimumMonthlyHighs = input.int(2, "Minimum Monthly highs for MR", 2, 20, group = GROUP_QUALIFICATION)
-int displayedMonthlyHighZones = input.int(5, "Nearest MR zones to display", 1, 10, group = GROUP_QUALIFICATION)
+int displayedMonthlyHighZones = input.int(3, "Nearest MR zones to display", 1, 10, group = GROUP_QUALIFICATION)
 int minimumDeclutterTouches = input.int(4, "Minimum Monthly touches per consolidated level", 2, 20, group = GROUP_QUALIFICATION)
 float overlapGroupAtrMultiplier = input.float(2.75, "Overlap-group span × Daily ATR%", 0.25, 10.0, 0.25, group = GROUP_QUALIFICATION)
 float maximumOverlapGroupSpanPercent = input.float(10.0, "Maximum overlap-group span %", 0.25, 10.0, 0.25, group = GROUP_QUALIFICATION)

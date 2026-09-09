@@ -175,20 +175,20 @@ assert.equal(adskSpan, 10);
 assert.equal(muSpan, 10);
 
 const adskSupports = supportResult(adskRawSupports, 3.955537313728005);
-const adskVisibleSupports = limitSupportsByPriority(adskSupports, 5);
+const adskVisibleSupports = limitSupportsByPriority(adskSupports, 3);
 assert.deepEqual(
-  adskVisibleSupports.slice(0, 4).map((zone) => Number(zone.center.toFixed(2))),
-  [186.29, 170.75, 147.25, 125.63],
+  adskVisibleSupports.map((zone) => Number(zone.center.toFixed(2))),
+  [186.29, 170.75, 147.25],
 );
-assert.equal(adskVisibleSupports.length, 5);
+assert.equal(adskVisibleSupports.length, 3);
 assert.equal(adskVisibleSupports[0].highConvictionSupport, true);
 assert.equal(adskVisibleSupports.some((zone) => Number(zone.center.toFixed(2)) === 199.63), false);
 
 const muSupports = supportResult(muRawSupports, 8.499947691026708);
-const muVisibleSupports = limitSupportsByPriority(muSupports, 5);
+const muVisibleSupports = limitSupportsByPriority(muSupports, 3);
 assert.deepEqual(
   muVisibleSupports.map((zone) => Number(zone.center.toFixed(2))),
-  [770.1, 352.05, 303.18, 207.14, 105.72],
+  [770.1, 352.05, 303.18],
 );
 
 // A low-touch nearest support remains actionable beside a stronger lower HC
@@ -198,7 +198,7 @@ const metaTransitionalPair = [
   { center: 477.9, touches: 10, spread: 12, low: 470, high: 485 },
 ];
 const metaSupports = supportResult(metaTransitionalPair, 5);
-const metaVisibleSupports = limitSupportsByPriority(metaSupports, 5);
+const metaVisibleSupports = limitSupportsByPriority(metaSupports, 3);
 assert.deepEqual(
   metaVisibleSupports.map((zone) => Number(zone.center.toFixed(3))),
   [522.375, 477.9],
@@ -208,7 +208,7 @@ assert.equal(metaVisibleSupports[1].highConvictionSupport, true);
 // JPM previously exposed a final-cap regression: six distant pairwise HC
 // winners consumed every ordinary slot and hid the nearest 292.81 (9xM)
 // support. The cap must keep that nearest actionable destination, select only
-// the closest HC destinations that fit, and remain at five visible supports.
+// the closest HC destinations that fit, and remain at three visible supports.
 const jpmRawSupports = [
   { center: 292.8101, touches: 9, spread: 3.8333, low: 288.72, high: 298.46 },
   { center: 280.31, touches: 3, spread: 5.3333, low: 279.1, high: 284.2376 },
@@ -237,11 +237,11 @@ const jpmRawSupports = [
   { center: 66.1, touches: 3, spread: 1.3333, low: 65.11, high: 67.64 },
 ];
 const jpmSupports = supportResult(jpmRawSupports, 1.9789693560153112);
-const jpmVisibleSupports = limitSupportsByPriority(jpmSupports, 5);
-assert.equal(jpmVisibleSupports.length, 5);
+const jpmVisibleSupports = limitSupportsByPriority(jpmSupports, 3);
+assert.equal(jpmVisibleSupports.length, 3);
 assert.deepEqual(
   jpmVisibleSupports.map((zone) => Number(zone.center.toFixed(4))),
-  [292.8101, 151.165, 139.675, 127.84, 118.105],
+  [292.8101, 151.165, 139.675],
 );
 assert.equal(jpmVisibleSupports[0].touches, 9);
 
