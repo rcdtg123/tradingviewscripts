@@ -146,9 +146,11 @@ scope is exclusively Monthly market structure.
   requires four. A two- or three-low zone can remain support but cannot be
   displayed or alerted as resistance.
 - Only surviving displayed M-levels are alertable.
-- Visible caps reserve space for HC and pending-support destinations. If the
-  number of priority destinations itself exceeds a configured cap, retain all
-  priority destinations rather than silently hiding one.
+- The visible support cap always retains the nearest actionable support. Fill
+  remaining capacity with the nearest HC supports, then the nearest ordinary
+  supports. HC status supplies selection priority but does not allow every HC
+  destination to bypass the cap. Pending supports awaiting breakdown or rearm
+  remain lifecycle obligations and may temporarily exceed the ordinary cap.
 - Distance from current price is the primary display ordering. Temporal spread,
   touch count, width, and center provide deterministic strength tie-breakers.
 - Draw a translucent box for the alert zone and a median-center line.

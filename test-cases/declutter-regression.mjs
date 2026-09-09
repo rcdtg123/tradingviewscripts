@@ -30,6 +30,10 @@ assert.equal(
   pineSource.includes("f_compactFinalResistanceDestinations("),
   true,
 );
+assert.equal(
+  pineSource.includes("The first non-pending member is the nearest actionable support"),
+  true,
+);
 
 const maximumSpanPercent = 10;
 const atrMultiplier = 2.75;
@@ -116,6 +120,32 @@ function supportResult(rawZones, atrPercent) {
   );
 }
 
+function limitSupportsByPriority(zones, maximumCount) {
+  const selected = new Set();
+  for (const zone of zones) {
+    if (zone.pending) selected.add(zone.center);
+  }
+  const nearestActionable = zones.find((zone) => !zone.pending);
+  if (nearestActionable) selected.add(nearestActionable.center);
+
+  let remainingSlots = Math.max(maximumCount - selected.size, 0);
+  for (const zone of zones) {
+    if (remainingSlots === 0) break;
+    if (zone.highConvictionSupport && !selected.has(zone.center)) {
+      selected.add(zone.center);
+      remainingSlots -= 1;
+    }
+  }
+  for (const zone of zones) {
+    if (remainingSlots === 0) break;
+    if (!selected.has(zone.center)) {
+      selected.add(zone.center);
+      remainingSlots -= 1;
+    }
+  }
+  return zones.filter((zone) => selected.has(zone.center));
+}
+
 const adskRawSupports = [
   { center: 199.6317, touches: 11, spread: 20.4364, low: 195.285, high: 209.0588 },
   { center: 186.29, touches: 15, spread: 15.4095, low: 179.61, high: 192.88 },
@@ -145,16 +175,19 @@ assert.equal(adskSpan, 10);
 assert.equal(muSpan, 10);
 
 const adskSupports = supportResult(adskRawSupports, 3.955537313728005);
+const adskVisibleSupports = limitSupportsByPriority(adskSupports, 5);
 assert.deepEqual(
-  adskSupports.slice(0, 4).map((zone) => Number(zone.center.toFixed(2))),
+  adskVisibleSupports.slice(0, 4).map((zone) => Number(zone.center.toFixed(2))),
   [186.29, 170.75, 147.25, 125.63],
 );
-assert.equal(adskSupports[0].highConvictionSupport, true);
-assert.equal(adskSupports.some((zone) => Number(zone.center.toFixed(2)) === 199.63), false);
+assert.equal(adskVisibleSupports.length, 5);
+assert.equal(adskVisibleSupports[0].highConvictionSupport, true);
+assert.equal(adskVisibleSupports.some((zone) => Number(zone.center.toFixed(2)) === 199.63), false);
 
 const muSupports = supportResult(muRawSupports, 8.499947691026708);
+const muVisibleSupports = limitSupportsByPriority(muSupports, 5);
 assert.deepEqual(
-  muSupports.slice(0, 5).map((zone) => Number(zone.center.toFixed(2))),
+  muVisibleSupports.map((zone) => Number(zone.center.toFixed(2))),
   [770.1, 352.05, 303.18, 207.14, 105.72],
 );
 
@@ -165,11 +198,61 @@ const metaTransitionalPair = [
   { center: 477.9, touches: 10, spread: 12, low: 470, high: 485 },
 ];
 const metaSupports = supportResult(metaTransitionalPair, 5);
+const metaVisibleSupports = limitSupportsByPriority(metaSupports, 5);
 assert.deepEqual(
-  metaSupports.map((zone) => Number(zone.center.toFixed(3))),
+  metaVisibleSupports.map((zone) => Number(zone.center.toFixed(3))),
   [522.375, 477.9],
 );
-assert.equal(metaSupports[1].highConvictionSupport, true);
+assert.equal(metaVisibleSupports[1].highConvictionSupport, true);
+
+// JPM previously exposed a final-cap regression: six distant pairwise HC
+// winners consumed every ordinary slot and hid the nearest 292.81 (9xM)
+// support. The cap must keep that nearest actionable destination, select only
+// the closest HC destinations that fit, and remain at five visible supports.
+const jpmRawSupports = [
+  { center: 292.8101, touches: 9, spread: 3.8333, low: 288.72, high: 298.46 },
+  { center: 280.31, touches: 3, spread: 5.3333, low: 279.1, high: 284.2376 },
+  { center: 256.83, touches: 2, spread: 4, low: 253.35, high: 260.31 },
+  { center: 240.455, touches: 2, spread: 4, low: 238.74, high: 242.17 },
+  { center: 221.7, touches: 2, spread: 4, low: 219.17, high: 224.23 },
+  { center: 202.13, touches: 4, spread: 4.6667, low: 200.61, high: 204.34 },
+  { center: 190.88, touches: 3, spread: 2, low: 188.46, high: 190.9 },
+  { center: 181.735, touches: 2, spread: 1, low: 179.2, high: 184.27 },
+  { center: 158.29, touches: 3, spread: 17.3333, low: 155.82, high: 160.06 },
+  { center: 151.165, touches: 4, spread: 3.6667, low: 149.52, high: 152.14 },
+  { center: 146.685, touches: 5, spread: 12.2, low: 145.46, high: 147.97 },
+  { center: 139.675, touches: 6, spread: 11.4667, low: 137.435, high: 142.65 },
+  { center: 134.37, touches: 4, spread: 4.6667, low: 131.81, high: 135.445 },
+  { center: 127.84, touches: 8, spread: 20.7857, low: 125.91, high: 129.71 },
+  { center: 123.44, touches: 2, spread: 26, low: 123.11, high: 123.77 },
+  { center: 118.105, touches: 3, spread: 11.3333, low: 115.02, high: 118.9 },
+  { center: 112.1503, touches: 7, spread: 22.9524, low: 110.52, high: 112.97 },
+  { center: 105.6418, touches: 12, spread: 20.3636, low: 103.98, high: 107.3167 },
+  { center: 102.2, touches: 6, spread: 21.5333, low: 101.28, high: 103.11 },
+  { center: 98.09, touches: 3, spread: 14, low: 97.86, high: 100.06 },
+  { center: 95.09, touches: 5, spread: 21, low: 94.96, high: 95.95 },
+  { center: 90.9432, touches: 6, spread: 20.8667, low: 90.16, high: 92 },
+  { center: 84.36, touches: 3, spread: 1.3333, low: 84.16, high: 85.23 },
+  { center: 82.025, touches: 6, spread: 21.5333, low: 80.65, high: 83.03 },
+  { center: 66.1, touches: 3, spread: 1.3333, low: 65.11, high: 67.64 },
+];
+const jpmSupports = supportResult(jpmRawSupports, 1.9789693560153112);
+const jpmVisibleSupports = limitSupportsByPriority(jpmSupports, 5);
+assert.equal(jpmVisibleSupports.length, 5);
+assert.deepEqual(
+  jpmVisibleSupports.map((zone) => Number(zone.center.toFixed(4))),
+  [292.8101, 151.165, 139.675, 127.84, 118.105],
+);
+assert.equal(jpmVisibleSupports[0].touches, 9);
+
+const pendingLifecycleFixture = [
+  { center: 300, pending: true, highConvictionSupport: false },
+  { center: 290, pending: false, highConvictionSupport: false },
+];
+assert.deepEqual(
+  limitSupportsByPriority(pendingLifecycleFixture, 1).map((zone) => zone.center),
+  [300, 290],
+);
 
 // Final combined resistance compaction is also disjoint. Every existing HC
 // member survives and suppresses only its paired non-HC neighbor.
@@ -225,11 +308,15 @@ console.log(JSON.stringify({
   formula: "min(10%, 2.75 × smoothed Daily ATR%)",
   adsk: {
     effectiveSpanPercent: adskSpan,
-    supports: adskSupports.slice(0, 4).map((zone) => Number(zone.center.toFixed(2))),
+    supports: adskVisibleSupports.map((zone) => Number(zone.center.toFixed(2))),
   },
   mu: {
     effectiveSpanPercent: muSpan,
-    supports: muSupports.slice(0, 5).map((zone) => Number(zone.center.toFixed(2))),
+    supports: muVisibleSupports.map((zone) => Number(zone.center.toFixed(2))),
   },
-  metaTransitionalSupports: metaSupports.map((zone) => Number(zone.center.toFixed(3))),
+  metaTransitionalSupports: metaVisibleSupports.map((zone) => Number(zone.center.toFixed(3))),
+  jpm: {
+    visibleSupports: jpmVisibleSupports.map((zone) => Number(zone.center.toFixed(4))),
+    nearestStrength: `${jpmVisibleSupports[0].touches}xM`,
+  },
 }, null, 2));

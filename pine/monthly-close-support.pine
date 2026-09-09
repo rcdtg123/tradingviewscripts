@@ -601,27 +601,74 @@ f_compactFinalResistanceDestinations(array<ResistanceCandidate> candidates, floa
             index += 1
     survivors
 
-// Visible caps limit ordinary zones, but never discard HC zones or a pending
-// support whose multi-session breakdown lifecycle is still active.
+f_centerIsSelected(array<float> selectedCenters, float center) =>
+    bool result = false
+    for selectedCenter in selectedCenters
+        if math.abs(selectedCenter - center) <= syminfo.mintick
+            result := true
+            break
+    result
+
+// Support selection always keeps the nearest actionable destination, then uses
+// remaining capacity for the nearest HC destinations and finally the nearest
+// ordinary destinations. Pending multi-session breakdown zones remain outside
+// the ordinary cap so their lifecycle cannot disappear before completion.
+// Resistance retains its existing priority-preserving behavior.
 f_limitZonesPreservingPriority(array<Zone> zones, int maximumCount, bool supportMode) =>
     array<Zone> limited = array.new<Zone>()
-    int priorityCount = 0
-    for zone in zones
-        bool isPriority = supportMode ?
-             (zone.highConvictionSupport or f_isPendingSupport(zone.center)) :
-             zone.highConvictionResistance
-        if isPriority
-            priorityCount += 1
-    int ordinarySlots = math.max(maximumCount - priorityCount, 0)
-    int ordinaryUsed = 0
-    for zone in zones
-        bool isPriority = supportMode ?
-             (zone.highConvictionSupport or f_isPendingSupport(zone.center)) :
-             zone.highConvictionResistance
-        if isPriority or ordinaryUsed < ordinarySlots
-            array.push(limited, zone)
-            if not isPriority
-                ordinaryUsed += 1
+    if supportMode
+        array<float> selectedCenters = array.new<float>()
+
+        // Pending supports are stateful obligations and may make the visible
+        // result exceed the ordinary cap until they break or rearm.
+        for zone in zones
+            if f_isPendingSupport(zone.center) and not f_centerIsSelected(selectedCenters, zone.center)
+                array.push(selectedCenters, zone.center)
+
+        // The first non-pending member is the nearest actionable support
+        // because callers sort by support distance before invoking this helper.
+        for zone in zones
+            if not f_isPendingSupport(zone.center)
+                if not f_centerIsSelected(selectedCenters, zone.center)
+                    array.push(selectedCenters, zone.center)
+                break
+
+        int remainingSlots = math.max(maximumCount - array.size(selectedCenters), 0)
+        if remainingSlots > 0
+            for zone in zones
+                bool nearestUnselectedHc =
+                     zone.highConvictionSupport and
+                     not f_centerIsSelected(selectedCenters, zone.center)
+                if nearestUnselectedHc
+                    array.push(selectedCenters, zone.center)
+                    remainingSlots -= 1
+                    if remainingSlots == 0
+                        break
+
+        if remainingSlots > 0
+            for zone in zones
+                if not f_centerIsSelected(selectedCenters, zone.center)
+                    array.push(selectedCenters, zone.center)
+                    remainingSlots -= 1
+                    if remainingSlots == 0
+                        break
+
+        // Restore nearest-price order for stable M1/M2/... numbering.
+        for zone in zones
+            if f_centerIsSelected(selectedCenters, zone.center)
+                array.push(limited, zone)
+    else
+        int priorityCount = 0
+        for zone in zones
+            if zone.highConvictionResistance
+                priorityCount += 1
+        int ordinarySlots = math.max(maximumCount - priorityCount, 0)
+        int ordinaryUsed = 0
+        for zone in zones
+            if zone.highConvictionResistance or ordinaryUsed < ordinarySlots
+                array.push(limited, zone)
+                if not zone.highConvictionResistance
+                    ordinaryUsed += 1
     limited
 
 f_sameZone(float firstCenter, float secondCenter, float maximumWidthPercent) =>

@@ -116,8 +116,11 @@ chaining:
    both levels have at least four Monthly confirmations. This identifies mature
    consolidation without removing a newly actionable two-touch level such as
    META 522.xx.
-5. Existing `HC` zones and reached supports awaiting breakdown are never
-   removed. Visible limits reserve capacity for them before ordinary zones.
+5. The visible support cap always reserves the nearest actionable support.
+   Remaining slots go first to the nearest surviving `HC` supports and then to
+   the nearest ordinary supports. Distant HC levels do not bypass the cap.
+   Reached supports awaiting breakdown remain visible until their lifecycle
+   completes and may temporarily make the list exceed the ordinary cap.
 6. Conviction ranks greater Monthly touch count first, then greater temporal
    spread, then a narrower historical cluster.
 
@@ -285,7 +288,8 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
   regressions against exported TradingView data.
 - [`test-cases/declutter-regression.mjs`](test-cases/declutter-regression.mjs)
   verifies ADSK consolidation, unchanged MU supports, META transitional-support
-  preservation, dynamic-span capping, and HC-safe resistance compaction.
+  preservation, JPM nearest-support priority, dynamic-span capping, and HC-safe
+  resistance compaction.
 
 ## Architecture
 

@@ -96,6 +96,12 @@ accepting these dates or prices as exact.
     support alongside the stronger 477.90 HC support. The mature-consolidation
     pass must not compact a pair unless both members have at least four Monthly
     confirmations.
+16. For JPM near 353.51, preserve the nearest 292.8101 (`9xM`) support even
+    when more than five distant pairwise winners carry an HC marker. With no
+    pending breakdown lifecycle, display no more than five supports: nearest
+    actionable first, then the nearest HC supports that fit, then nearest
+    ordinary supports. Expected centers for the supplied replay are 292.8101,
+    151.165, 139.675, 127.84, and 118.105.
 
 ## Resistance and volume-breakout cases
 
