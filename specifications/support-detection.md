@@ -9,9 +9,10 @@ scope is exclusively Monthly market structure.
 ## Monthly-high resistance and cross-family priority
 
 - Cluster completed Monthly highs using the same volatility-normalized detector.
-- Require two Monthly highs by default and display the nearest five strictly
-  above live price as `MR1` through `MR5`.
-- When an R and MR candidate overlap within 10%, retain the higher-conviction
+- Require two Monthly highs by default and display the nearest three strictly
+  above live price as `MR1` through `MR3`.
+- When an R and MR candidate overlap within the volatility-adjusted
+  decluttering span, retain the higher-conviction
   member. MR preference applies only when conviction ties; same-family
   survivors are not compared again during this cross-family step.
 - A Monthly-high breakout requires price at `MR + 0.25 * Daily ATR` and at least
@@ -103,8 +104,9 @@ scope is exclusively Monthly market structure.
   for the visible resistance shortlist only when its cluster contains at least
   four qualifying completed Monthly lows by default.
 - Declutter nearby display candidates independently of historical clustering.
-  Resolve adjacent support pairs from highest to lowest using 10% proximity by
-  default; do not join them into transitive chains.
+  Calculate proximity as `min(10%, 2.75 × smoothed Daily ATR%)`. Resolve
+  adjacent support pairs from highest to lowest without joining them into
+  transitive chains.
 - For each crowded pair, always preserve the higher center as the nearer
   actionable support for approach/reached alerts. If the lower member has
   greater conviction, also preserve it as a separate high-conviction support;
@@ -113,9 +115,14 @@ scope is exclusively Monthly market structure.
   spread and narrower cluster width. Thus a weaker nearby support is no longer
   allowed to hide the immediate actionable level, while a stronger lower level
   remains visible rather than being discarded.
+- After baseline pair handling, compact a crowded pair to one structural winner
+  only when both members have at least four Monthly confirmations. Preserve all
+  existing HC members and all pending supports awaiting either breakdown or
+  recovery. This mature-pair gate prevents a two-touch transitional support from
+  disappearing merely because a stronger lower destination is nearby.
 - Apply grouping to the complete qualifying candidate list before taking the
   visible shortlist, so lower distinct regions are not accidentally omitted.
-- Display the five nearest surviving support/current regions by default.
+- Display the three nearest surviving support/current regions by default.
 - Resolve adjacent resistance pairs from lowest to highest without transitive
   chaining. Always preserve the lower center as the nearest actionable
   resistance. If its paired higher member has greater conviction, preserve that
@@ -123,11 +130,15 @@ scope is exclusively Monthly market structure.
   that paired higher member.
 - Perform support and resistance consolidation before visible-zone numbering and
   alert selection. Suppressed members neither draw nor alert.
-- After same-family decluttering, arbitrate only overlapping cross-family `R`/`MR`
-  pairs within 10%. Never compare two same-family survivors again. Retain the
-  greater Monthly touch count, then greater temporal spread and narrower
-  cluster width; prefer MR only when conviction ties.
-- Display the three nearest resistance regions by default. Resistance approach
+- After same-family decluttering, arbitrate overlapping cross-family `R`/`MR`
+  pairs within the dynamic capped span. Retain the greater Monthly touch count,
+  then greater temporal spread and narrower cluster width; prefer MR only when
+  conviction ties. Never remove an HC member in favor of a non-HC member.
+- Because cross-family arbitration can make prior same-family survivors newly
+  adjacent, compact the final combined resistance list once as disjoint pairs.
+  Apply this pass only when both members have at least four Monthly
+  confirmations, and preserve every HC member.
+- Display the three nearest ordinary resistance regions by default. Resistance approach
   bands mirror support bands: they extend downward from the median Monthly low
   using the same volatility-adaptive width.
 - The resistance qualification threshold is independent of the support
@@ -135,6 +146,11 @@ scope is exclusively Monthly market structure.
   requires four. A two- or three-low zone can remain support but cannot be
   displayed or alerted as resistance.
 - Only surviving displayed M-levels are alertable.
+- The visible support cap always retains the nearest actionable support. Fill
+  remaining capacity with the nearest HC supports, then the nearest ordinary
+  supports. HC status supplies selection priority but does not allow every HC
+  destination to bypass the cap. Pending supports awaiting breakdown or rearm
+  remain lifecycle obligations and may temporarily exceed the ordinary cap.
 - Distance from current price is the primary display ordering. Temporal spread,
   touch count, width, and center provide deterministic strength tie-breakers.
 - Draw a translucent box for the alert zone and a median-center line.
@@ -197,7 +213,7 @@ scope is exclusively Monthly market structure.
 
 ## Resistance and breakout alerts
 
-- Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
+- Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR3`.
   Continue detecting and latching their upward approach internally so both
   volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
 - Send `R_REACHED` or `MR_REACHED` only when rising live price reaches/crosses

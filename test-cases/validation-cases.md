@@ -51,21 +51,22 @@ accepting these dates or prices as exact.
 
 ## Display-priority cases
 
-1. When more than five supports qualify, display the five nearest zones at or
+1. When more than three supports qualify, display the three selected zones at or
    below current price.
 2. A very strong but distant historical zone must not displace a nearer valid
    support from the visible shortlist.
 3. For equal-distance zones, prefer greater temporal spread, then more touches,
    then the narrower zone.
 4. Resolve support candidates as non-transitive adjacent pairs from highest to
-   lowest. Retain each pair's higher member as actionable and retain its lower
-   member as `HC` only when the lower member has greater conviction.
+   lowest using `min(10%, 2.75 × smoothed Daily ATR%)`. Retain each pair's
+   higher member as actionable and retain its lower member as `HC` when the
+   lower member has greater conviction.
 5. A chain of individually close supports must not collapse distinct endpoints
    whose direct separation exceeds 10% merely because intermediate levels bridge
    them.
 6. If the next non-overlapping support is near 89, the visible result begins
    `M1 96.xx`, `M2 89.xx`.
-7. Group the complete candidate list before selecting five visible/alertable
+7. Group the complete candidate list before selecting three visible/alertable
    supports.
 8. For support near 96.366 and 88.346 inside the same crowding region, retain
    96.366 as the nearest actionable level. If 88.346 has greater Monthly touch
@@ -83,6 +84,24 @@ accepting these dates or prices as exact.
 12. For META near 568, the 522.xx intermediate candidate must not transitively
     group 553.xx with 477.xx. The visible supports begin near 553.xx and 477.xx,
     not 553.xx and 339.xx.
+13. For ADSK near 212.21, smoothed Daily ATR% is approximately 3.956%, so the
+    effective decluttering span is capped at 10%. Mature supports 199.63
+    (`11xM`) and 186.29 (`15xM`) are 6.68% apart. Retain only 186.29 as `M1 HC`,
+    followed by approximately 170.75 and 147.25.
+14. For MU near 1,000.26, smoothed Daily ATR% is approximately 8.50%, so the
+    effective span is also capped at 10%. The closest candidate pair among the
+    first three is 352.05 versus 303.18 at 13.88%; preserve the visible sequence
+    770.10, 352.05, and 303.18.
+15. For META after 553.xx breaks, preserve the two-touch 522.375 actionable
+    support alongside the stronger 477.90 HC support. The mature-consolidation
+    pass must not compact a pair unless both members have at least four Monthly
+    confirmations.
+16. For JPM near 353.51, preserve the nearest 292.8101 (`9xM`) support even
+    when more than three distant pairwise winners carry an HC marker. With no
+    pending breakdown lifecycle, display no more than three supports: nearest
+    actionable first, then the nearest HC supports that fit, then nearest
+    ordinary supports. Expected centers for the supplied replay are 292.8101,
+    151.165, and 139.675.
 
 ## Resistance and volume-breakout cases
 
@@ -115,11 +134,12 @@ accepting these dates or prices as exact.
 
 1. Two completed Monthly highs within the cluster-width limit produce an MR
    center at their median; a developing Monthly high never participates.
-2. Display the nearest five MR centers strictly above live price. Never display
+2. Display the nearest three MR centers strictly above live price. Never display
    an MR center below price, including while it remains latched internally.
-3. After same-family pairwise decluttering, compare only overlapping cross-family
-   R/MR candidates within 10%. Display the higher-conviction member and prefer
-   MR only on an exact strength tie.
+3. After same-family pairwise decluttering, compare overlapping cross-family
+   R/MR candidates within `min(10%, 2.75 × smoothed Daily ATR%)`. Display the
+   higher-conviction member and prefer MR only on an exact strength tie. An HC
+   candidate must never be removed in favor of a non-HC candidate.
 4. Rising entry into the surviving MR latches it internally but emits no
    approach notification. Suppressed R mechanisms emit no duplicates.
 5. At `MR + 0.25 * Daily ATR` and actual extended-session volume of 5.00x,
@@ -129,7 +149,7 @@ accepting these dates or prices as exact.
    one `RT_REACHED` alert.
 7. Invalidate retest support below `MR - 0.25 * Daily ATR`; the old structural
    mechanisms can classify the region again on later updates.
-8. A hidden MR outside the nearest-five shortlist cannot begin an approach or
+8. A hidden MR outside the nearest-three shortlist cannot begin an approach or
    breakout lifecycle.
 9. For ADBE, overlapping MR centers near 262.27 and 277.61 retain the lower
    actionable resistance. Retain and mark 277.61 `HC` only when its conviction
@@ -151,7 +171,7 @@ accepting these dates or prices as exact.
     after the breakout. Do not reconstruct every older Monthly-high cluster.
 14. If a displayed Monthly-low support with at least `3xM` overlaps that Retest
     zone, show and alert only the established M support and retire the Retest.
-15. Never send `R_APPROACH` for R1–R3 or `MR_APPROACH` for MR1–MR5. Retain both
+15. Never send `R_APPROACH` for R1–R3 or `MR_APPROACH` for MR1–MR3. Retain both
     internal approach latches so R/MR volume-confirmed breakouts still qualify.
     Continue sending the distinct Retest alert only at the exact displayed RT
     center, not at its upper approach boundary.

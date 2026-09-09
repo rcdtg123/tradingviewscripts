@@ -22,15 +22,15 @@ Despite the historical filename, support detection now uses completed Monthly
 
 ## Detected market structure
 
-### Monthly support: M1-M5
+### Monthly support: M1-M3
 
 - Uses completed Monthly candle lows only.
 - Examines the latest 120 completed Monthly candles by default.
 - Requires at least two qualifying Monthly lows.
 - Uses the median qualifying low as the level center.
-- Displays up to five surviving support zones below or containing live price.
+- Displays up to three surviving support zones below or containing live price.
 - Numbers levels by proximity after decluttering: `M1` is the nearest surviving
-  Monthly support, followed by `M2` through `M5`.
+  Monthly support, followed by `M2` and `M3`.
 - Two-touch zones are Developing and orange; zones with three or more touches
   are Established and blue.
 
@@ -44,12 +44,12 @@ fallen below it. These zones:
 - Use red boxes and labels.
 - Retain the historical strength of the original support cluster.
 
-### Monthly-high resistance: MR1-MR5
+### Monthly-high resistance: MR1-MR3
 
 - Uses completed Monthly candle highs only.
 - Requires at least two qualifying Monthly highs by default.
-- Displays up to five surviving resistance zones strictly above live price.
-- Numbers levels by proximity as `MR1` through `MR5`.
+- Displays up to three surviving resistance zones strictly above live price.
+- Numbers levels by proximity as `MR1` through `MR3`.
 - Uses red boxes and labels because both `R` and `MR` represent resistance.
 
 ### Retest support
@@ -99,8 +99,9 @@ The displayed boundaries and alert boundaries are identical.
 ## Strength and decluttering
 
 Nearby structural levels can otherwise create overlapping boxes and redundant
-alerts. The indicator therefore declutters candidates within a 10% neighborhood
-by default before assigning visible level numbers.
+alerts. The indicator derives a volatility-adjusted decluttering span as
+`2.75 × smoothed Daily ATR%`, capped at a hard maximum of 10%, before assigning
+visible level numbers.
 
 Support decluttering preserves two complementary roles without transitive
 chaining:
@@ -109,16 +110,27 @@ chaining:
    approach and reached alerts.
 2. Adjacent candidates are evaluated as non-transitive pairs, preventing a
    middle level from collapsing two otherwise distinct support destinations.
-3. When a paired lower support has greater conviction, it is also retained and
-   marked `HC` for high conviction.
-4. Conviction ranks greater Monthly touch count first, then greater temporal
+3. When a paired lower support has greater conviction, it is initially retained
+   and marked `HC` for high conviction.
+4. A second pass compacts a crowded pair to its structural winner only when
+   both levels have at least four Monthly confirmations. This identifies mature
+   consolidation without removing a newly actionable two-touch level such as
+   META 522.xx.
+5. The visible support cap always reserves the nearest actionable support.
+   Remaining slots go first to the nearest surviving `HC` supports and then to
+   the nearest ordinary supports. Distant HC levels do not bypass the cap.
+   Reached supports awaiting breakdown remain visible until their lifecycle
+   completes and may temporarily make the list exceed the ordinary cap.
+6. Conviction ranks greater Monthly touch count first, then greater temporal
    spread, then a narrower historical cluster.
 
 Resistance decluttering mirrors the support policy: the nearest resistance is
 actionable, candidates are evaluated as non-transitive adjacent pairs, and a
 stronger paired higher level is retained with an `HC` marker. Cross-family
-arbitration compares only an overlapping `R` against an `MR`; conviction wins,
-with `MR` preferred on an exact conviction tie.
+arbitration compares an overlapping `R` against an `MR`; conviction wins, with
+`MR` preferred on an exact conviction tie. The final combined resistance list
+then compacts disjoint mature pairs using the same dynamic span. No existing
+`HC` resistance can be filtered out.
 
 This preserves timely alerts at the nearest support or resistance without
 losing an important stronger destination beyond it. Suppressed zones are neither
@@ -175,7 +187,7 @@ interval; unavailable footprint data produces no substitute alert.
 
 ### Resistance alerts
 
-- Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
+- Displayed `R1`–`R3` and `MR1`–`MR3` zones do not emit resistance-approach
   notifications. Their entry crossings remain tracked internally because the
   existing volume-confirmed breakout workflows depend on those latches.
 - A rising live price that reaches or crosses the exact center of a displayed
@@ -244,7 +256,9 @@ old alert and create it again so the latest logic is used.
 | Visible `R` zones | 3 |
 | Minimum Monthly highs for `MR` | 2 |
 | Visible `MR` zones | 5 |
-| Decluttering neighborhood | 10% |
+| Minimum confirmations per consolidated level | 4 Monthly candles |
+| Decluttering span multiplier | 2.75 × smoothed Daily ATR% |
+| Decluttering span hard maximum | 10% |
 | Break/rearm distance | 0.25 Daily ATR |
 | Breakout conviction distance | 0.25 Daily ATR |
 
@@ -272,6 +286,10 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
 - [`test-cases/meta-replay.mjs`](test-cases/meta-replay.mjs) reproduces key META
   price-path behavior plus SNPS resistance and PLAB timeframe-normalization
   regressions against exported TradingView data.
+- [`test-cases/declutter-regression.mjs`](test-cases/declutter-regression.mjs)
+  verifies ADSK consolidation, unchanged MU supports, META transitional-support
+  preservation, JPM nearest-support priority, dynamic-span capping, and HC-safe
+  resistance compaction.
 
 ## Architecture
 
