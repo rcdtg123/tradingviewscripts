@@ -1,0 +1,249 @@
+//@version=6
+indicator(
+     "Monthly Range Weekly Volume Breakout",
+     shorttitle = "MRWBreak",
+     overlay = false,
+     calc_bars_count = 112)
+
+// This indicator is designed for TradingView Pine Screener on the 1W
+// timeframe. It evaluates the latest completed Weekly candle and uses only
+// completed Monthly candles to build the pre-breakout range.
+
+//──────────────────────────────────────────────────────────────────────────────
+// Inputs
+//──────────────────────────────────────────────────────────────────────────────
+
+string GROUP_RANGE = "1. Monthly range"
+int minimumRangeMonthsInput = input.int(6, "Minimum range duration (months)", 6, 24, group = GROUP_RANGE)
+int maximumRangeMonthsInput = input.int(120, "Maximum range duration (months)", 6, 120, group = GROUP_RANGE)
+int minimumUpperTouchesInput = input.int(2, "Minimum upper-boundary touches", 2, 10, group = GROUP_RANGE)
+int minimumLowerTouchesInput = input.int(2, "Minimum lower-boundary touches", 2, 10, group = GROUP_RANGE)
+float touchTolerancePercentInput = input.float(3.0, "Boundary touch tolerance %", 0.25, 10.0, 0.25, group = GROUP_RANGE)
+float minimumContainmentPercentInput = input.float(80.0, "Minimum Monthly close containment %", 50.0, 100.0, 1.0, group = GROUP_RANGE)
+float maximumRangeWidthPercentInput = input.float(40.0, "Maximum range width %", 5.0, 200.0, 1.0, group = GROUP_RANGE)
+int maximumMonthsSinceUpperTouchInput = input.int(3, "Maximum months since upper touch", 1, 12, group = GROUP_RANGE)
+
+string GROUP_BREAKOUT = "2. Weekly breakout"
+float breakoutBufferPercentInput = input.float(0.0, "Close buffer above upper range %", 0.0, 5.0, 0.05, group = GROUP_BREAKOUT)
+float minimumVolumeMultipleInput = input.float(1.2, "Minimum volume multiple", 1.0, 10.0, 0.1, group = GROUP_BREAKOUT)
+int volumeAverageLengthInput = input.int(20, "Completed Weekly volume average", 5, 100, group = GROUP_BREAKOUT)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Monthly range detector
+//──────────────────────────────────────────────────────────────────────────────
+
+// Runs in the requested 1M context. Offset 1 is the last completed month.
+// Candidate boundaries are the means of repeated highs/lows near each window's
+// extremes. Complete-width and close-containment gates prevent loose chains
+// from becoming ranges.
+f_detectMonthlyRange(
+     int minimumRangeMonths,
+     int maximumRangeMonths,
+     int minimumUpperTouches,
+     int minimumLowerTouches,
+     float touchTolerancePercent,
+     float minimumContainmentPercent,
+     float maximumRangeWidthPercent,
+     int maximumMonthsSinceUpperTouch) =>
+    float bestUpper = na
+    float bestLower = na
+    int bestSpanMonths = 0
+    int bestWindowMonths = 0
+    int bestTotalTouches = 0
+    float bestWidthPercent = na
+
+    int firstDuration = math.min(minimumRangeMonths, maximumRangeMonths)
+    int lastDuration = math.max(minimumRangeMonths, maximumRangeMonths)
+    float toleranceFraction = touchTolerancePercent / 100.0
+
+    for duration = firstDuration to lastDuration
+        float extremeUpper = na
+        float extremeLower = na
+        int availableBars = 0
+
+        for offset = 1 to duration
+            bool completeBar =
+                 not na(open[offset]) and
+                 not na(high[offset]) and
+                 not na(low[offset]) and
+                 not na(close[offset])
+            if completeBar
+                extremeUpper := na(extremeUpper) ? high[offset] : math.max(extremeUpper, high[offset])
+                extremeLower := na(extremeLower) ? low[offset] : math.min(extremeLower, low[offset])
+                availableBars += 1
+
+        if availableBars == duration and not na(extremeUpper) and not na(extremeLower)
+            float upperTouchFloor = extremeUpper * (1.0 - toleranceFraction)
+            float lowerTouchCeiling = extremeLower * (1.0 + toleranceFraction)
+            float upperTotal = 0.0
+            float lowerTotal = 0.0
+            int upperTouches = 0
+            int lowerTouches = 0
+            int oldestTouchOffset = 0
+            int newestTouchOffset = duration + 1
+            int newestUpperTouchOffset = duration + 1
+
+            for offset = 1 to duration
+                bool upperTouch = high[offset] >= upperTouchFloor
+                bool lowerTouch = low[offset] <= lowerTouchCeiling
+
+                if upperTouch
+                    upperTotal += high[offset]
+                    upperTouches += 1
+                    newestUpperTouchOffset := math.min(newestUpperTouchOffset, offset)
+
+                if lowerTouch
+                    lowerTotal += low[offset]
+                    lowerTouches += 1
+
+                if upperTouch or lowerTouch
+                    oldestTouchOffset := math.max(oldestTouchOffset, offset)
+                    newestTouchOffset := math.min(newestTouchOffset, offset)
+
+            bool enoughTouches =
+                 upperTouches >= minimumUpperTouches and
+                 lowerTouches >= minimumLowerTouches
+
+            if enoughTouches
+                float candidateUpper = upperTotal / upperTouches
+                float candidateLower = lowerTotal / lowerTouches
+                float midpoint = (candidateUpper + candidateLower) / 2.0
+                float candidateWidthPercent = midpoint != 0.0 ?
+                     (candidateUpper - candidateLower) / math.abs(midpoint) * 100.0 : na
+                int candidateSpanMonths = oldestTouchOffset - newestTouchOffset + 1
+                int containedCloses = 0
+                bool materiallyBroken = false
+
+                for offset = 1 to duration
+                    bool closeContained =
+                         close[offset] >= candidateLower and
+                         close[offset] <= candidateUpper
+                    if closeContained
+                        containedCloses += 1
+
+                    bool closedTooHigh = close[offset] > candidateUpper * (1.0 + toleranceFraction)
+                    bool closedTooLow = close[offset] < candidateLower * (1.0 - toleranceFraction)
+                    materiallyBroken := materiallyBroken or closedTooHigh or closedTooLow
+
+                int requiredContainedCloses = int(math.ceil(duration * minimumContainmentPercent / 100.0))
+                bool eligible =
+                     candidateUpper > candidateLower and
+                     not na(candidateWidthPercent) and
+                     candidateWidthPercent <= maximumRangeWidthPercent and
+                     candidateSpanMonths >= minimumRangeMonths and
+                     newestUpperTouchOffset <= maximumMonthsSinceUpperTouch and
+                     containedCloses >= requiredContainedCloses and
+                     not materiallyBroken
+
+                int totalTouches = upperTouches + lowerTouches
+                bool betterSpan = candidateSpanMonths > bestSpanMonths
+                bool equalSpan = candidateSpanMonths == bestSpanMonths
+                bool betterWindow = duration > bestWindowMonths
+                bool equalWindow = duration == bestWindowMonths
+                bool moreTouches = totalTouches > bestTotalTouches
+                bool equalTouches = totalTouches == bestTotalTouches
+                bool narrower = na(bestWidthPercent) or candidateWidthPercent < bestWidthPercent
+                bool betterCandidate =
+                     na(bestUpper) or
+                     betterSpan or
+                     (equalSpan and betterWindow) or
+                     (equalSpan and equalWindow and moreTouches) or
+                     (equalSpan and equalWindow and equalTouches and narrower)
+
+                if eligible and betterCandidate
+                    bestUpper := candidateUpper
+                    bestLower := candidateLower
+                    bestSpanMonths := candidateSpanMonths
+                    bestWindowMonths := duration
+                    bestTotalTouches := totalTouches
+                    bestWidthPercent := candidateWidthPercent
+
+    bool historyReady = not na(close[120])
+    [bestUpper, bestLower, bestSpanMonths, bestWidthPercent, historyReady]
+
+int MONTHLY_CALC_BARS = 132
+
+[monthlyUpperRange, monthlyLowerRange, monthlyRangeMonths, monthlyRangeWidthPercent, hasTenYearMonthlyHistory] = request.security(
+     syminfo.tickerid,
+     "1M",
+     f_detectMonthlyRange(
+          minimumRangeMonthsInput,
+          maximumRangeMonthsInput,
+          minimumUpperTouchesInput,
+          minimumLowerTouchesInput,
+          touchTolerancePercentInput,
+          minimumContainmentPercentInput,
+          maximumRangeWidthPercentInput,
+          maximumMonthsSinceUpperTouchInput),
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = MONTHLY_CALC_BARS)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Weekly relative volume and breakout
+//──────────────────────────────────────────────────────────────────────────────
+
+float priorAverageVolume = ta.sma(volume, volumeAverageLengthInput)[1]
+float volumeMultiple =
+     not na(priorAverageVolume) and priorAverageVolume > 0.0 ?
+     volume / priorAverageVolume : na
+
+bool isWeeklyTimeframe = timeframe.in_seconds() == timeframe.in_seconds("1W")
+float breakoutBoundary = monthlyUpperRange * (1.0 + breakoutBufferPercentInput / 100.0)
+float breakoutPercent =
+     not na(monthlyUpperRange) and monthlyUpperRange != 0.0 ?
+     (close - monthlyUpperRange) / math.abs(monthlyUpperRange) * 100.0 : na
+float weeklyCandlePercent = open != 0.0 ? (close - open) / math.abs(open) * 100.0 : na
+
+bool dataAvailable =
+     isWeeklyTimeframe and
+     hasTenYearMonthlyHistory and
+     not na(monthlyUpperRange) and
+     not na(monthlyLowerRange) and
+     not na(volume) and
+     not na(priorAverageVolume) and
+     not na(volumeMultiple) and
+     not na(weeklyCandlePercent)
+
+bool weeklyCloseBreakout =
+     dataAvailable and
+     close > breakoutBoundary and
+     close[1] <= breakoutBoundary
+bool volumeConfirmed =
+     dataAvailable and
+     close > open and
+     volumeMultiple >= minimumVolumeMultipleInput
+bool rawMatch = weeklyCloseBreakout and volumeConfirmed
+
+// On an active Weekly bar, [1] is the latest completed candle. When the latest
+// dataset bar is already confirmed, use it directly to avoid a one-week delay.
+bool useCurrentBar = barstate.isconfirmed
+bool match = useCurrentBar ? rawMatch : rawMatch[1]
+bool latestDataAvailable = useCurrentBar ? dataAvailable : dataAvailable[1]
+float latestUpperRange = useCurrentBar ? monthlyUpperRange : monthlyUpperRange[1]
+float latestLowerRange = useCurrentBar ? monthlyLowerRange : monthlyLowerRange[1]
+float latestRangeMonths = useCurrentBar ? monthlyRangeMonths : monthlyRangeMonths[1]
+float latestRangeWidthPercent = useCurrentBar ? monthlyRangeWidthPercent : monthlyRangeWidthPercent[1]
+float latestBreakoutPercent = useCurrentBar ? breakoutPercent : breakoutPercent[1]
+float latestWeeklyVolume = useCurrentBar ? volume : volume[1]
+float latestVolumeMultiple = useCurrentBar ? volumeMultiple : volumeMultiple[1]
+float latestWeeklyCandlePercent = useCurrentBar ? weeklyCandlePercent : weeklyCandlePercent[1]
+
+//──────────────────────────────────────────────────────────────────────────────
+// Pine Screener outputs
+//──────────────────────────────────────────────────────────────────────────────
+
+plot(match ? 1.0 : 0.0, "Match", display = display.data_window + display.pine_screener)
+plot(latestUpperRange, "Upper range", format = format.price, display = display.data_window + display.pine_screener)
+plot(latestLowerRange, "Lower range", format = format.price, display = display.data_window + display.pine_screener)
+plot(latestRangeMonths, "Range months", display = display.data_window + display.pine_screener)
+plot(latestRangeWidthPercent, "Range width %", display = display.data_window + display.pine_screener)
+plot(latestBreakoutPercent, "Breakout %", display = display.data_window + display.pine_screener)
+plot(latestWeeklyVolume, "Weekly volume", format = format.volume, display = display.data_window + display.pine_screener)
+plot(latestVolumeMultiple, "Volume multiple", display = display.data_window + display.pine_screener)
+plot(latestWeeklyCandlePercent, "Weekly candle %", display = display.data_window + display.pine_screener)
+plot(latestDataAvailable ? 1.0 : 0.0, "Data available", display = display.data_window + display.pine_screener)
+
+alertcondition(
+     match,
+     "Monthly range Weekly breakout",
+     "{{exchange}}:{{ticker}} closed above its Monthly range with >= 1.2x Weekly volume")

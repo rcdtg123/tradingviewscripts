@@ -2,10 +2,17 @@
 
 ## Planning status
 
-This document proposes three implementation plans for review. No Pine indicator
-is implemented yet. The selected plan will be converted into a detailed
-specification, Pine Script v6 indicator, validation cases, and reusable Pine
-development skill in a later phase.
+Review completed on 2026-09-10. The approved path is Plan B, with Plan A only as
+a fallback if Weekly footprints fail the TradingView feasibility check. The
+approved baseline is the previous 20 completed Weekly buy-volume values, signal
+recency is the latest completed Weekly candle, and the starting volume multiple
+is 1.2x rather than the originally proposed 1.5x.
+
+The live feasibility result selected the fallback: Pine Screener returned the
+current Weekly footprint values but not a usable previous-20-Week footprint
+series. The production script therefore retains the touch-confirmed Monthly
+range detector and uses Plan A's bullish-candle plus total Weekly relative-volume
+confirmation, accurately labeled as total volume.
 
 ## Objective
 
@@ -365,13 +372,9 @@ The existing Monthly Structure files remain untouched during this planning
 phase. A later repository-cleanup change can migrate that older project into
 its own project directory, with all links and test paths updated atomically.
 
-## Decisions required from the review
+## Review decisions
 
-1. Select Plan A, B, or C. Recommended: **Plan B feasibility spike, then Plan A
-   fallback**.
-2. Define the volume baseline. Recommended: **previous 20 completed Weekly
-   values**; choose the 20-Day weekly-equivalent definition if “20 days” was
-   intentional.
-3. Confirm signal recency. Recommended: **only the latest completed Weekly
-   breakout**, not any historical breakout found during the ten-year range
-   search.
+1. **Plan B feasibility spike, then Plan A fallback**.
+2. **Previous 20 completed Weekly buy-volume values**.
+3. **Only the latest completed Weekly breakout**.
+4. **1.2x starting buy-volume multiple**.
