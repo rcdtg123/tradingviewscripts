@@ -1,5 +1,17 @@
 # TradingView Monthly Market Structure
 
+## Projects
+
+- Existing indicator: `pine/monthly-close-support.pine` with its specification
+  and regression tests in the current legacy layout.
+- Planned indicator: [`projects/monthly-range-weekly-breakout/implementation-plans.md`](projects/monthly-range-weekly-breakout/implementation-plans.md),
+  containing three Pine Screener implementation alternatives for a Monthly
+  range and Weekly volume-confirmed breakout scan.
+
+New Pine use cases will use one directory per project under `projects/`. The
+existing indicator can be migrated into that layout later as a dedicated,
+atomic cleanup so current paths and tests are not disrupted during planning.
+
 This project contains a unified Pine Script v6 indicator for detecting and
 monitoring structural price zones derived from completed Monthly candles.
 
