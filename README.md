@@ -152,16 +152,19 @@ after satisfying its separate rebound requirement. Price stages do not repeat
 while price remains near the same zone and rearm only after price moves
 sufficiently above the approach band.
 
-An exact support reach requires an observed falling live-price crossing of the
-displayed center. A new Daily bar opening completely below the center is a gap,
-not an exact reach; opening exactly at the center qualifies. The separate break
-event retains live-price, gap, and Daily-range detection. After an exact reach,
-the same M zone remains displayed and alertable across later sessions until its
-break event fires or price recovers above the normal rearm boundary. This lets a
-gradual decline cross the center on one day and the ATR-adjusted break boundary
-on another. Every breakdown path remains eligible only while live price is still
-at or below that boundary, which prevents a recovered price from emitting a
-stale notification based on an earlier gap or Daily low. The per-event Daily
+An exact support reach first requires an observed falling entry through that
+level's upper approach boundary. The armed state persists while price remains
+inside the band, including across later sessions, and `M_REACHED` fires only
+when a subsequent falling live-price transition reaches or crosses the center.
+A single fast live transition may traverse both boundary and center in order.
+Loading the script while price is already inside the band cannot manufacture a
+reach. A new Daily bar opening completely below the center is a gap, not an
+exact reach; opening exactly at the center qualifies after boundary arming. The
+separate break event retains live-price, gap, and Daily-range detection. After
+an exact reach, the same M zone remains displayed and alertable across later
+sessions until its break event fires or price recovers above the normal rearm
+boundary. Every breakdown path remains eligible only while live price is still
+at or below that boundary, preventing stale notifications. The per-event Daily
 gate prevents repeats.
 
 The buy-volume reaction range extends from the normal upper approach boundary
@@ -178,10 +181,13 @@ interval; unavailable footprint data produces no substitute alert.
 - Displayed `R1`–`R3` and `MR1`–`MR5` zones do not emit resistance-approach
   notifications. Their entry crossings remain tracked internally because the
   existing volume-confirmed breakout workflows depend on those latches.
-- A rising live price that reaches or crosses the exact center of a displayed
-  resistance emits `R_REACHED` or `MR_REACHED`. A new Daily bar that gaps
-  completely above the center does not count as an exact reach; opening exactly
-  at the center does. Hidden resistance zones cannot alert.
+- A rising entry through the displayed resistance's lower approach boundary
+  arms that exact R/MR level. The latch persists across sessions inside the
+  band, and `R_REACHED` or `MR_REACHED` fires only when a later or same-transition
+  rising live price reaches/crosses its center. Loading inside the band cannot
+  manufacture a reach. A new Daily bar that gaps completely above the center
+  does not count; opening exactly at it qualifies only after boundary arming.
+  Hidden resistance zones cannot alert.
 - Falling into a resistance zone from above does not trigger the approach
   alert.
 - The indicator latches an approached level as resistance during its breakout
@@ -272,6 +278,9 @@ All settings can be changed from the indicator's Inputs panel in TradingView.
 - [`test-cases/meta-replay.mjs`](test-cases/meta-replay.mjs) reproduces key META
   price-path behavior plus SNPS resistance and PLAB timeframe-normalization
   regressions against exported TradingView data.
+- [`test-cases/reached-lifecycle-regression.mjs`](test-cases/reached-lifecycle-regression.mjs)
+  verifies multi-session boundary arming and directional center reaches for
+  support and resistance without external market-data files.
 
 ## Architecture
 

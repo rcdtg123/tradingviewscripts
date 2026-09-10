@@ -920,6 +920,7 @@ if barstate.islast
 // That persistence is required to suppress duplicate tick-by-tick alerts.
 varip array<float> alertStateCenters = array.new<float>()
 varip array<bool> approachSent = array.new<bool>()
+varip array<bool> supportReachArmed = array.new<bool>()
 varip array<bool> reachedSent = array.new<bool>()
 varip array<bool> breakSent = array.new<bool>()
 varip array<bool> resistanceReachedSent = array.new<bool>()
@@ -955,6 +956,7 @@ f_stateIndex(float center) =>
     if result == -1
         array.push(alertStateCenters, center)
         array.push(approachSent, false)
+        array.push(supportReachArmed, false)
         array.push(reachedSent, false)
         array.push(breakSent, false)
         array.push(resistanceReachedSent, false)
@@ -993,6 +995,12 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             bool dailyRangeCrossedApproachDown = currentExtendedDailyOpen > approachBoundary and currentExtendedDailyLow <= approachBoundary
             bool crossedApproachDown = liveCrossedApproachDown or gappedThroughApproach or dailyRangeCrossedApproachDown
 
+            // Reaching a support center is valid only after this exact level
+            // has first been entered from above through its approach boundary.
+            // This latch persists across sessions while price remains in-band.
+            if crossedApproachDown
+                array.set(supportReachArmed, stateIndex, true)
+
             // Exact support reaches require an observed downward live-price
             // crossing. A new Daily bar opening completely below the center is
             // a gap-through, not an exact reach; opening exactly at it counts.
@@ -1019,6 +1027,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             if close > approachBoundary + rearmDistance
                 f_unlatchPendingSupport(support)
                 array.set(approachSent, stateIndex, false)
+                array.set(supportReachArmed, stateIndex, false)
                 array.set(reachedSent, stateIndex, false)
                 array.set(breakSent, stateIndex, false)
 
@@ -1026,7 +1035,8 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 f_unlatchPendingSupport(support)
 
             bool shouldReach =
-                 enableReachedAlerts and crossedSupportDown and
+                 enableReachedAlerts and array.get(supportReachArmed, stateIndex) and
+                 crossedSupportDown and
                  not array.get(reachedSent, stateIndex)
             bool shouldApproach =
                  enableApproachAlerts and crossedApproachDown and
@@ -1059,6 +1069,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
 
             if shouldReach
                 array.set(approachSent, stateIndex, true)
+                array.set(supportReachArmed, stateIndex, false)
                 array.set(reachedSent, stateIndex, true)
                 string reachedMessage =
                      syminfo.tickerid + " reached M" + str.tostring(zoneIndex + 1) + " Monthly support" +
@@ -1070,6 +1081,7 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                     alert(reachedMessage, alert.freq_all)
 
             if shouldBreak
+                array.set(supportReachArmed, stateIndex, false)
                 array.set(breakSent, stateIndex, true)
                 string breakMessage =
                      syminfo.tickerid + " broke below M" + str.tostring(zoneIndex + 1) + " Monthly support" +
@@ -1137,7 +1149,11 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 array.set(breakout8xSent, stateIndex, false)
                 f_unlatchResistance(resistance)
 
-            bool reachedResistance = not na(previousLivePrice) and previousLivePrice < resistance and close >= resistance and (not barstate.isnew or currentExtendedDailyOpen <= resistance)
+            bool reachedResistance =
+                 f_isLatchedResistance(resistance) and
+                 not na(previousLivePrice) and previousLivePrice < resistance and
+                 close >= resistance and
+                 (not barstate.isnew or currentExtendedDailyOpen <= resistance)
             bool shouldAlertResistanceReached = enableResistanceReachedAlerts and reachedResistance and not array.get(resistanceReachedSent, stateIndex)
             if shouldAlertResistanceReached
                 array.set(resistanceReachedSent, stateIndex, true)
@@ -1241,7 +1257,11 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             string structureName = "MR" + str.tostring(mrRank)
             string mrRole = f_isHighConvictionResistance(mrZone) ? "\nRole: High-conviction resistance" : "\nRole: Actionable resistance"
 
-            bool reachedMr = isVisibleMr and not na(previousLivePrice) and previousLivePrice < resistance and close >= resistance and (not barstate.isnew or currentExtendedDailyOpen <= resistance)
+            bool reachedMr =
+                 isVisibleMr and array.get(mrLatched, stateIndex) and
+                 not na(previousLivePrice) and previousLivePrice < resistance and
+                 close >= resistance and
+                 (not barstate.isnew or currentExtendedDailyOpen <= resistance)
             bool shouldAlertMrReached = enableResistanceReachedAlerts and reachedMr and not array.get(mrReachedSent, stateIndex)
             if shouldAlertMrReached
                 array.set(mrReachedSent, stateIndex, true)

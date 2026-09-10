@@ -159,9 +159,13 @@ scope is exclusively Monthly market structure.
   when the TradingView watchlist alert session is configured as Extended.
 - Send an approach alert when falling price first enters the one-sided approach
   band by crossing its upper boundary downward from above.
-- Send a reached alert only when falling live price reaches or crosses the exact
-  median Monthly support from above. A new Daily bar opening completely below
-  the center is not an exact reach; opening exactly at the center qualifies.
+- That downward boundary crossing arms the exact support across later sessions
+  while price remains inside the band. Send a reached alert only when the armed
+  falling path subsequently reaches or crosses the median Monthly support from
+  above. A single live transition may cross both boundary and center in order;
+  starting inside the band cannot qualify. A new Daily bar opening completely
+  below the center is not an exact reach; opening exactly at the center qualifies
+  only after boundary arming.
 - Send a break alert only after price falls `0.25 * Daily ATR` below support.
 - When a displayed M support is reached, latch that exact zone as pending
   support and prioritize it in the displayed/alertable shortlist. Retain it
@@ -200,10 +204,14 @@ scope is exclusively Monthly market structure.
 - Do not send resistance-approach alerts for either `R1`–`R3` or `MR1`–`MR5`.
   Continue detecting and latching their upward approach internally so both
   volume-confirmed breakout workflows and MR Retest behavior remain unchanged.
-- Send `R_REACHED` or `MR_REACHED` only when rising live price reaches/crosses
-  the exact center of a displayed resistance. Exclude a new Daily bar that gaps
-  completely above the center, allow an open exactly at the center, suppress
-  hidden zones, and apply the standard once-per-day exact-event gate.
+- Arm an exact displayed R/MR level only when rising live price first crosses
+  its lower approach boundary. Keep that latch across sessions inside the band.
+  Send `R_REACHED` or `MR_REACHED` only when the armed rising path subsequently
+  reaches/crosses the exact center; the boundary and center may be traversed in
+  one live transition. Starting inside the band cannot qualify. Exclude a new
+  Daily bar that gaps completely above the center, allow an open exactly at the
+  center only after arming, suppress hidden zones, and apply the standard
+  once-per-day exact-event gate.
 - Do not alert on entry into the upper Retest approach band. Send the separate
   Retest alert only when falling price reaches the exact center of a displayed
   `RT1`, `RT2`, and so on; hidden Retest zones cannot alert.

@@ -37,7 +37,8 @@ accepting these dates or prices as exact.
 1. Every alert-eligible zone is visible, and no hidden zone can trigger.
 2. Outside -> M1 approach band: one approach alert.
 3. Remain inside the approach band: no repeat.
-4. Fall to/cross M1 support: one reached alert.
+4. After the boundary entry arms M1, remain inside across any number of
+   sessions, then fall to/cross M1 support: one reached alert.
 5. Fall `0.25 * Daily ATR` below M1: one break alert.
 6. Recover meaningfully above the approach boundary, then re-enter: a new
    approach/reached sequence is armed (subject to once-daily dedup).
@@ -48,6 +49,8 @@ accepting these dates or prices as exact.
 9. Rising into a band from below: no alert.
 10. Alert starts while already inside a band or below support: no startup alert;
     wait for a future observed downward crossing from above.
+11. Starting inside the M band and crossing its center without first crossing
+    the upper boundary from above: no reached alert.
 
 ## Display-priority cases
 
@@ -155,10 +158,13 @@ accepting these dates or prices as exact.
     internal approach latches so R/MR volume-confirmed breakouts still qualify.
     Continue sending the distinct Retest alert only at the exact displayed RT
     center, not at its upper approach boundary.
-16. Rising through the exact center of a displayed R or MR emits one respective
-    `R_REACHED` or `MR_REACHED` alert. Entering only its approach band is silent.
+16. Rising through the lower approach boundary arms the exact displayed R or MR
+    without an approach notification. The latch persists across later sessions
+    inside the band. A subsequent rising center crossing emits one respective
+    `R_REACHED` or `MR_REACHED` alert. Starting inside the band does not qualify.
     A new Daily bar opening completely above the center is not an exact reach;
-    opening exactly at it qualifies. Hidden R/MR zones cannot alert.
+    opening exactly at it qualifies only after boundary arming. Hidden R/MR
+    zones cannot alert.
 17. For AVGO on 2026-08-19, completed June/July lows produce M1 358.445 (`2xM`)
     and an approach boundary near 371.049. Crossing only 371.049 is silent. A
     falling live-price update through 358.445 emits `M_REACHED`.
