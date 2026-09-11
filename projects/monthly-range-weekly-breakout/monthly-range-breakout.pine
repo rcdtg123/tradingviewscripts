@@ -13,6 +13,10 @@ indicator(
 // Inputs
 //──────────────────────────────────────────────────────────────────────────────
 
+string GROUP_UNIVERSE = "0. Universe filter"
+float minimumMarketCapBillionsInput = input.float(5.0, "Minimum market cap (billions)", 0.0, 1000.0, 0.5, group = GROUP_UNIVERSE)
+string marketCapCurrencyInput = input.string("USD", "Market-cap currency", options = ["USD", "EUR"], group = GROUP_UNIVERSE)
+
 string GROUP_RANGE = "1. Monthly range"
 int minimumRangeMonthsInput = input.int(6, "Minimum range duration (months)", 6, 24, group = GROUP_RANGE)
 int maximumRangeMonthsInput = input.int(120, "Maximum range duration (months)", 6, 120, group = GROUP_RANGE)
@@ -36,6 +40,34 @@ float weeklyTouchTolerancePercentInput = input.float(3.0, "Resistance touch tole
 float maximumWeeklyBaseWidthPercentInput = input.float(40.0, "Maximum base width %", 5.0, 100.0, 1.0, group = GROUP_WEEKLY_BASE)
 int maximumWeeksSinceUpperTouchInput = input.int(3, "Maximum weeks since resistance touch", 1, 6, group = GROUP_WEEKLY_BASE)
 float minimumWeeklyBaseVolumeMultipleInput = input.float(1.5, "Weekly-base volume multiple", 1.0, 10.0, 0.1, group = GROUP_WEEKLY_BASE)
+
+//──────────────────────────────────────────────────────────────────────────────
+// Market-cap universe gate
+//──────────────────────────────────────────────────────────────────────────────
+
+float totalSharesFQ = request.financial(
+     syminfo.tickerid,
+     "TOTAL_SHARES_OUTSTANDING",
+     "FQ",
+     gaps = barmerge.gaps_off,
+     ignore_invalid_symbol = true)
+float totalSharesFY = request.financial(
+     syminfo.tickerid,
+     "TOTAL_SHARES_OUTSTANDING",
+     "FY",
+     gaps = barmerge.gaps_off,
+     ignore_invalid_symbol = true)
+float totalSharesOutstanding = not na(totalSharesFQ) ? totalSharesFQ : totalSharesFY
+float requestedMarketCapFxRate = request.currency_rate(
+     syminfo.currency,
+     marketCapCurrencyInput,
+     ignore_invalid_currency = true)
+float marketCapFxRate = syminfo.currency == marketCapCurrencyInput ? 1.0 : requestedMarketCapFxRate
+float marketCapBillions =
+     not na(totalSharesOutstanding) and not na(close) and not na(marketCapFxRate) ?
+     totalSharesOutstanding * close * marketCapFxRate / 1000000000.0 : na
+bool marketCapDataAvailable = not na(marketCapBillions)
+bool marketCapEligible = marketCapDataAvailable and marketCapBillions >= minimumMarketCapBillionsInput
 
 //──────────────────────────────────────────────────────────────────────────────
 // Monthly range detector
@@ -321,6 +353,7 @@ float weeklyCandlePercent = open != 0.0 ? (close - open) / math.abs(open) * 100.
 
 bool commonDataAvailable =
      isWeeklyTimeframe and
+     marketCapDataAvailable and
      not na(volume) and
      not na(priorAverageVolume) and
      not na(volumeMultiple) and
@@ -357,8 +390,8 @@ bool weeklyBaseVolumeConfirmed =
      volumeMultiple >= minimumWeeklyBaseVolumeMultipleInput
 bool weeklyBaseMatch = weeklyBaseCloseBreakout and weeklyBaseVolumeConfirmed
 
-bool rawMatch = monthlyMatch or weeklyBaseMatch
-int rawSignalType = monthlyMatch ? 1 : weeklyBaseMatch ? 2 : 0
+bool rawMatch = marketCapEligible and (monthlyMatch or weeklyBaseMatch)
+int rawSignalType = rawMatch ? (monthlyMatch ? 1 : 2) : 0
 bool rawDataAvailable = monthlyDataAvailable or weeklyBaseDataAvailable
 float rawUpperRange = rawSignalType == 1 ? monthlyUpperRange :
      rawSignalType == 2 ? weeklyBaseUpper :
@@ -388,7 +421,7 @@ float latestRangeLength = useCurrentBar ? rawRangeLength : rawRangeLength[1]
 float latestRangeWidthPercent = useCurrentBar ? rawRangeWidthPercent : rawRangeWidthPercent[1]
 float latestBreakoutPercent = useCurrentBar ? rawBreakoutPercent : rawBreakoutPercent[1]
 float latestVolumeMultiple = useCurrentBar ? volumeMultiple : volumeMultiple[1]
-float latestWeeklyCandlePercent = useCurrentBar ? weeklyCandlePercent : weeklyCandlePercent[1]
+float latestMarketCapBillions = useCurrentBar ? marketCapBillions : marketCapBillions[1]
 
 //──────────────────────────────────────────────────────────────────────────────
 // Pine Screener outputs
@@ -402,7 +435,7 @@ plot(latestRangeLength, "Range length", display = display.data_window + display.
 plot(latestRangeWidthPercent, "Range width %", display = display.data_window + display.pine_screener)
 plot(latestBreakoutPercent, "Breakout %", display = display.data_window + display.pine_screener)
 plot(latestVolumeMultiple, "Volume multiple", display = display.data_window + display.pine_screener)
-plot(latestWeeklyCandlePercent, "Weekly candle %", display = display.data_window + display.pine_screener)
+plot(latestMarketCapBillions, "Market cap (bn)", display = display.data_window + display.pine_screener)
 plot(latestDataAvailable ? 1.0 : 0.0, "Data available", display = display.data_window + display.pine_screener)
 
 alertcondition(

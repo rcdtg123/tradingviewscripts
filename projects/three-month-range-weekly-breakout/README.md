@@ -9,6 +9,8 @@ the 3M candles from monthly data because Pine Screener does not allow a direct
 ## Defaults
 
 - Pine Screener interval: `1W`.
+- Estimated market cap of at least 5.0 billion, normalized to USD by default;
+  EUR is selectable.
 - Minimum consolidation: 6 calendar months, equivalent to two completed `3M`
   candles.
 - Maximum search horizon: 120 months, equivalent to 40 completed `3M` candles.
@@ -24,7 +26,10 @@ the 3M candles from monthly data because Pine Screener does not allow a direct
 2. Compile it on a `1W` chart.
 3. Select it in Pine Screener and keep the screener interval at `1W`.
 4. Select the desired index source and filter `Match = 1`.
-5. Keep `Data available` visible during initial validation.
+5. Keep `Market cap (bn)` and `Data available` visible during validation.
+
+Stocks below the floor cannot match. Missing shares-outstanding or currency
+conversion data also fails closed instead of silently bypassing the filter.
 
 ## Important 3M behavior
 
@@ -46,4 +51,6 @@ final validation steps.
 
 The monthly-backed calendar-quarter implementation compiled, was saved as
 **Three-Month Range Weekly Breakout**, and completed a live Pine Screener `1W`
-scan on 2026-09-11 without the unsupported-timeframe error.
+scan on 2026-09-11 without the unsupported-timeframe error. Its
+market-cap-gated revision subsequently completed a 503-symbol S&P 500 `1W`
+scan with all four requests accepted.

@@ -27,10 +27,19 @@ The Weekly signal requires prior close at or below the ceiling, current close
 strictly above it, a bullish candle, and total volume at least 1.1x the average
 of the prior 20 completed Weekly bars.
 
+Before the signal can match, estimated market capitalization must be at least
+5.0 billion in the selected normalization currency (`USD` by default or
+`EUR`). The estimate uses FQ total shares outstanding with an FY fallback,
+multiplies by the tested Weekly close, and applies TradingView's daily FX rate.
+Missing shares or FX data fails closed; exactly 5.0 billion passes.
+
 The ten Pine Screener outputs are Match, upper/lower range, range months, range
-width, breakout percentage, Weekly volume, volume multiple, Weekly candle
-percentage, and data availability.
+width, breakout percentage, Weekly volume, volume multiple, market
+capitalization in billions, and data availability.
 
 The monthly request needs at most 124 bars: 120 months for the maximum range,
 up to two alignment months, and one complete oldest quarter. Ten years remains
 a maximum search horizon, never a minimum-history requirement.
+
+Together, the monthly structural request, two shares-outstanding requests, and
+one currency-rate request use four of Pine Screener's five allowed requests.

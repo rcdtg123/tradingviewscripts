@@ -186,8 +186,15 @@ function breakoutMatches({
   weeklyVolume,
   priorWeeklyVolumes,
   threshold = 1.1,
+  marketCapBillions = 5,
+  minimumMarketCapBillions = 5,
 }) {
-  if (!range || priorWeeklyVolumes.length !== 20) return false;
+  if (
+    !range ||
+    priorWeeklyVolumes.length !== 20 ||
+    !Number.isFinite(marketCapBillions) ||
+    marketCapBillions < minimumMarketCapBillions
+  ) return false;
   const average = priorWeeklyVolumes.reduce((sum, value) => sum + value, 0) / 20;
   const multiple = weeklyVolume / average;
   return (
@@ -239,6 +246,33 @@ assert.equal(
 );
 
 assert.equal(detectMonthlyRange(stableRange.slice(0, 5)), null, "five months cannot qualify");
+
+assert.equal(
+  breakoutMatches({
+    range: detected,
+    previousWeeklyClose: detected.upper,
+    weeklyOpen: detected.upper,
+    weeklyClose: detected.upper + 1,
+    weeklyVolume: 110,
+    priorWeeklyVolumes: priorVolumes,
+    marketCapBillions: 4.999,
+  }),
+  false,
+  "market cap immediately below 5 billion should fail",
+);
+assert.equal(
+  breakoutMatches({
+    range: detected,
+    previousWeeklyClose: detected.upper,
+    weeklyOpen: detected.upper,
+    weeklyClose: detected.upper + 1,
+    weeklyVolume: 110,
+    priorWeeklyVolumes: priorVolumes,
+    marketCapBillions: Number.NaN,
+  }),
+  false,
+  "missing market-cap data should fail closed",
+);
 
 // PFG, week beginning 2026-04-20. The current Monthly detector had a
 // pre-breakout ceiling of 96.6875. Its 1.176x volume passes the revised 1.1x
@@ -318,6 +352,9 @@ const source = fs.readFileSync(
 );
 assert.equal((source.match(/\bplot\(/g) ?? []).length, 10, "screener contract has ten plots");
 assert.equal((source.match(/\brequest\.security\(/g) ?? []).length, 1, "Monthly values share one request");
+assert.equal((source.match(/\brequest\.financial\(/g) ?? []).length, 2, "FQ shares fall back to FY shares");
+assert.equal((source.match(/\brequest\.currency_rate\(/g) ?? []).length, 1, "market cap has one FX request");
+assert.ok((source.match(/\brequest\.[a-z_]+\(/g) ?? []).length <= 5, "Pine Screener request budget is respected");
 assert.equal((source.match(/\brequest\.footprint\(/g) ?? []).length, 0, "production fallback has no footprint dependency");
 assert.ok(!/input\.(timeframe|symbol|time)\(/.test(source), "unsupported screener inputs are absent");
 assert.match(source, /input\.float\(1\.1, "Monthly breakout volume multiple"/);
@@ -325,5 +362,9 @@ assert.match(source, /input\.float\(1\.5, "Weekly-base volume multiple"/);
 assert.match(source, /not na\(close\[minimumRangeMonths\]\)/);
 assert.doesNotMatch(source, /not na\(close\[120\]\)/);
 assert.match(source, /ta\.sma\(volume, volumeAverageLengthInput\)\[1\]/);
+assert.match(source, /input\.float\(5\.0, "Minimum market cap \(billions\)"/);
+assert.match(source, /input\.string\("USD", "Market-cap currency", options = \["USD", "EUR"\]/);
+assert.match(source, /marketCapBillions >= minimumMarketCapBillionsInput/);
+assert.match(source, /"Market cap \(bn\)"/);
 
 console.log("Combined Monthly and Weekly-base breakout checks passed.");

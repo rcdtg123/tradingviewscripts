@@ -13,6 +13,14 @@ pre-breakout ceiling, and elevated total Weekly volume relative to the prior 20
 completed weeks. Total volume is a participation proxy, not measured buy
 volume.
 
+Before either branch can match, the stock must have an estimated market
+capitalization of at least 5.0 billion in the selected normalization currency
+(`USD` by default, with `EUR` also available). The estimate uses the latest FQ
+total shares outstanding, falls back to FY shares, multiplies by the tested
+Weekly close, and converts the quote currency through TradingView's daily FX
+rate. Missing shares or FX data fails closed. Equality at exactly 5.0 billion
+passes.
+
 If the current Weekly candle is developing, the indicator reports bar `[1]`.
 If the last Weekly candle is already confirmed, it reports that candle. Every
 structural boundary uses bars preceding the candle being tested.
@@ -97,7 +105,7 @@ The ten output columns are:
 6. `Range width %`
 7. `Breakout %`
 8. `Volume multiple`
-9. `Weekly candle %`
+9. `Market cap (bn)` in the selected USD/EUR currency
 10. `Data available`
 
 Filter `Match = 1` in Pine Screener. Use `Signal type` to separate the two
@@ -106,5 +114,7 @@ setups when desired.
 ## Request budget
 
 - One Monthly `request.security()` tuple.
+- Two `request.financial()` calls for FQ shares with an FY fallback.
+- One `request.currency_rate()` call for USD/EUR normalization.
 - Weekly-base and volume calculations run directly in the `1W` context.
-- Total request count: one, below Pine Screener's five-request limit.
+- Total request count: four, below Pine Screener's five-request limit.

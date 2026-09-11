@@ -87,8 +87,23 @@ function completedCalendarQuarters(monthlyBars, currentMonthNumber) {
   return quarters;
 }
 
-function breakoutMatches({ range, previousClose, open, close, volume, priorVolumes, threshold = 1.1 }) {
-  if (!range || priorVolumes.length !== 20) return false;
+function breakoutMatches({
+  range,
+  previousClose,
+  open,
+  close,
+  volume,
+  priorVolumes,
+  threshold = 1.1,
+  marketCapBillions = 5,
+  minimumMarketCapBillions = 5,
+}) {
+  if (
+    !range ||
+    priorVolumes.length !== 20 ||
+    !Number.isFinite(marketCapBillions) ||
+    marketCapBillions < minimumMarketCapBillions
+  ) return false;
   const average = priorVolumes.reduce((sum, value) => sum + value, 0) / 20;
   return previousClose <= range.upper && close > range.upper && close > open && volume / average >= threshold;
 }
@@ -119,16 +134,25 @@ const priorVolumes = Array(20).fill(100);
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes }), true);
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 109.99, priorVolumes }), false);
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper + 2, close: detected.upper + 1, volume: 150, priorVolumes }), false);
+assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes, marketCapBillions: 4.999 }), false);
+assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes, marketCapBillions: Number.NaN }), false);
 
 const source = fs.readFileSync(new URL("./three-month-range-breakout.pine", import.meta.url), "utf8");
 assert.equal((source.match(/\bplot\(/g) ?? []).length, 10);
 assert.equal((source.match(/\brequest\.security\(/g) ?? []).length, 1);
+assert.equal((source.match(/\brequest\.financial\(/g) ?? []).length, 2);
+assert.equal((source.match(/\brequest\.currency_rate\(/g) ?? []).length, 1);
+assert.ok((source.match(/\brequest\.[a-z_]+\(/g) ?? []).length <= 5);
 assert.match(source, /"1M"/);
 assert.doesNotMatch(source, /request\.security\([\s\S]*?"3M"/);
 assert.match(source, /completedMonthsInCurrentQuarter = \(month\(time\) - 1\) % 3/);
 assert.match(source, /oldestRequiredMonthOffset = latestCompletedQuarterOffset \+ minimumRangeBars \* 3 - 1/);
 assert.doesNotMatch(source, /not na\(close\[40\]\)/);
 assert.match(source, /ta\.sma\(volume, volumeAverageLengthInput\)\[1\]/);
+assert.match(source, /input\.float\(5\.0, "Minimum market cap \(billions\)"/);
+assert.match(source, /input\.string\("USD", "Market-cap currency", options = \["USD", "EUR"\]/);
+assert.match(source, /marketCapBillions >= minimumMarketCapBillionsInput/);
+assert.match(source, /"Market cap \(bn\)"/);
 assert.ok(!/input\.(timeframe|symbol|time)\(/.test(source));
 
 console.log("Three-month range breakout model and static checks passed.");

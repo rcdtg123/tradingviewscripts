@@ -54,6 +54,8 @@ Automated replay verifies:
 - Weekly-base volume at exactly 1.5x passes; 1.4999x fails.
 - Prior close already above the same ceiling, a bearish signal candle, missing
   volume history, or a non-Weekly chart fails closed.
+- Market cap at exactly 5.0 billion passes; 4.999 billion and missing
+  shares/FX data fail closed.
 - The signal candle is excluded from the structural range and volume baseline.
 
 An exploratory replay over the supplied history through each cutoff produced
@@ -66,8 +68,8 @@ present. Manual chart review remains required before threshold tuning.
 
 - Pine version 6 indicator.
 - Exactly ten Pine Screener plots.
-- One Monthly request tuple; Weekly-base calculations use the main `1W`
-  context.
+- Four requests: one Monthly tuple, FQ and FY shares, and one currency rate;
+  Weekly-base calculations use the main `1W` context.
 - No footprint dependency or unsupported screener inputs.
 - Ten years is a maximum Monthly search horizon; six completed Monthly candles
   satisfy the default minimum-history gate.
@@ -82,6 +84,8 @@ present. Manual chart review remains required before threshold tuning.
    longer rejected solely for lacking ten years of history.
 5. Run a small watchlist before the S&P 500 scan.
 6. Filter `Match = 1` and review each `Signal type` separately.
+7. Verify a known sub-5-billion stock reports `Match = 0`; repeat with the
+   market-cap currency set to both USD and EUR.
 
 ## Prior production evidence
 
@@ -89,4 +93,6 @@ The Monthly-only version compiled and completed a 503-symbol S&P 500 `1W` scan
 on 2026-09-10. Its footprint feasibility variant lacked historical footprint
 averages, so production volume remains ordinary total Weekly volume. The
 combined revision compiled and was saved in TradingView on 2026-09-11 as
-**Monthly + Weekly Base Breakout**.
+**Monthly + Weekly Base Breakout**. After adding the market-cap gate, it
+compiled and completed a 503-symbol S&P 500 `1W` scan on 2026-09-11 with the
+`Market cap (bn)` column populated and no request-limit errors.

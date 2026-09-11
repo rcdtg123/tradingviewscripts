@@ -9,6 +9,10 @@ indicator(
 // 3M request, so completed calendar-quarter candles are assembled from the
 // permitted 1M feed. The candidate Weekly breakout cannot alter the boundary.
 
+string GROUP_UNIVERSE = "0. Universe filter"
+float minimumMarketCapBillionsInput = input.float(5.0, "Minimum market cap (billions)", 0.0, 1000.0, 0.5, group = GROUP_UNIVERSE)
+string marketCapCurrencyInput = input.string("USD", "Market-cap currency", options = ["USD", "EUR"], group = GROUP_UNIVERSE)
+
 string GROUP_RANGE = "1. Three-month range"
 int minimumRangeMonthsInput = input.int(6, "Minimum consolidation (months)", minval = 6, maxval = 36, step = 3, group = GROUP_RANGE)
 int maximumRangeMonthsInput = input.int(120, "Maximum search horizon (months)", minval = 6, maxval = 120, step = 3, group = GROUP_RANGE)
@@ -23,6 +27,30 @@ string GROUP_BREAKOUT = "2. Weekly breakout"
 float breakoutBufferPercentInput = input.float(0.0, "Close buffer above upper range %", 0.0, 5.0, 0.05, group = GROUP_BREAKOUT)
 float minimumVolumeMultipleInput = input.float(1.1, "Minimum volume multiple", 1.0, 10.0, 0.1, group = GROUP_BREAKOUT)
 int volumeAverageLengthInput = input.int(20, "Completed Weekly volume average", 5, 100, group = GROUP_BREAKOUT)
+
+float totalSharesFQ = request.financial(
+     syminfo.tickerid,
+     "TOTAL_SHARES_OUTSTANDING",
+     "FQ",
+     gaps = barmerge.gaps_off,
+     ignore_invalid_symbol = true)
+float totalSharesFY = request.financial(
+     syminfo.tickerid,
+     "TOTAL_SHARES_OUTSTANDING",
+     "FY",
+     gaps = barmerge.gaps_off,
+     ignore_invalid_symbol = true)
+float totalSharesOutstanding = not na(totalSharesFQ) ? totalSharesFQ : totalSharesFY
+float requestedMarketCapFxRate = request.currency_rate(
+     syminfo.currency,
+     marketCapCurrencyInput,
+     ignore_invalid_currency = true)
+float marketCapFxRate = syminfo.currency == marketCapCurrencyInput ? 1.0 : requestedMarketCapFxRate
+float marketCapBillions =
+     not na(totalSharesOutstanding) and not na(close) and not na(marketCapFxRate) ?
+     totalSharesOutstanding * close * marketCapFxRate / 1000000000.0 : na
+bool marketCapDataAvailable = not na(marketCapBillions)
+bool marketCapEligible = marketCapDataAvailable and marketCapBillions >= minimumMarketCapBillionsInput
 
 f_detectThreeMonthRange(
      int minimumRangeMonths,
@@ -185,6 +213,7 @@ float weeklyCandlePercent = open != 0.0 ? (close - open) / math.abs(open) * 100.
 
 bool dataAvailable =
      isWeeklyTimeframe and
+     marketCapDataAvailable and
      hasMinimumHistory and
      not na(threeMonthUpperRange) and
      not na(threeMonthLowerRange) and
@@ -200,7 +229,7 @@ bool volumeConfirmed =
      dataAvailable and
      close > open and
      volumeMultiple >= minimumVolumeMultipleInput
-bool rawMatch = weeklyCloseBreakout and volumeConfirmed
+bool rawMatch = marketCapEligible and weeklyCloseBreakout and volumeConfirmed
 
 bool useCurrentBar = barstate.isconfirmed
 bool match = useCurrentBar ? rawMatch : rawMatch[1]
@@ -212,7 +241,7 @@ float latestRangeWidthPercent = useCurrentBar ? rangeWidthPercent : rangeWidthPe
 float latestBreakoutPercent = useCurrentBar ? breakoutPercent : breakoutPercent[1]
 float latestWeeklyVolume = useCurrentBar ? volume : volume[1]
 float latestVolumeMultiple = useCurrentBar ? volumeMultiple : volumeMultiple[1]
-float latestWeeklyCandlePercent = useCurrentBar ? weeklyCandlePercent : weeklyCandlePercent[1]
+float latestMarketCapBillions = useCurrentBar ? marketCapBillions : marketCapBillions[1]
 
 plot(match ? 1.0 : 0.0, "Match", display = display.data_window + display.pine_screener)
 plot(latestUpperRange, "Upper range", format = format.price, display = display.data_window + display.pine_screener)
@@ -222,7 +251,7 @@ plot(latestRangeWidthPercent, "Range width %", display = display.data_window + d
 plot(latestBreakoutPercent, "Breakout %", display = display.data_window + display.pine_screener)
 plot(latestWeeklyVolume, "Weekly volume", format = format.volume, display = display.data_window + display.pine_screener)
 plot(latestVolumeMultiple, "Volume multiple", display = display.data_window + display.pine_screener)
-plot(latestWeeklyCandlePercent, "Weekly candle %", display = display.data_window + display.pine_screener)
+plot(latestMarketCapBillions, "Market cap (bn)", display = display.data_window + display.pine_screener)
 plot(latestDataAvailable ? 1.0 : 0.0, "Data available", display = display.data_window + display.pine_screener)
 
 alertcondition(

@@ -6,10 +6,11 @@
   and regression tests in the current legacy layout.
 - Combined Pine Screener indicator: [`projects/monthly-range-weekly-breakout/README.md`](projects/monthly-range-weekly-breakout/README.md),
   detecting either a Monthly consolidation breakout or a shorter Weekly-base
-  breakout with branch-specific relative-volume thresholds.
+  breakout with branch-specific relative-volume thresholds and a 5-billion
+  USD/EUR market-cap floor.
 - Three-month-candle variant: [`projects/three-month-range-weekly-breakout/README.md`](projects/three-month-range-weekly-breakout/README.md),
   detecting a minimum six-month consolidation from completed `3M` candles and
-  confirming its breakout on a Weekly close.
+  confirming its breakout on a Weekly close, with the same market-cap floor.
 
 New Pine use cases will use one directory per project under `projects/`. The
 existing indicator can be migrated into that layout later as a dedicated,
