@@ -101,8 +101,8 @@ function breakoutMatches({
   if (
     !range ||
     priorVolumes.length !== 20 ||
-    !Number.isFinite(marketCapBillions) ||
-    marketCapBillions < minimumMarketCapBillions
+    (Number.isFinite(marketCapBillions) &&
+      marketCapBillions < minimumMarketCapBillions)
   ) return false;
   const average = priorVolumes.reduce((sum, value) => sum + value, 0) / 20;
   return previousClose <= range.upper && close > range.upper && close > open && volume / average >= threshold;
@@ -135,7 +135,7 @@ assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, o
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 109.99, priorVolumes }), false);
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper + 2, close: detected.upper + 1, volume: 150, priorVolumes }), false);
 assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes, marketCapBillions: 4.999 }), false);
-assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes, marketCapBillions: Number.NaN }), false);
+assert.equal(breakoutMatches({ range: detected, previousClose: detected.upper, open: detected.upper, close: detected.upper + 1, volume: 110, priorVolumes, marketCapBillions: Number.NaN }), true);
 
 const source = fs.readFileSync(new URL("./three-month-range-breakout.pine", import.meta.url), "utf8");
 assert.equal((source.match(/\bplot\(/g) ?? []).length, 10);
@@ -151,7 +151,7 @@ assert.doesNotMatch(source, /not na\(close\[40\]\)/);
 assert.match(source, /ta\.sma\(volume, volumeAverageLengthInput\)\[1\]/);
 assert.match(source, /input\.float\(5\.0, "Minimum market cap \(billions\)"/);
 assert.match(source, /input\.string\("USD", "Market-cap currency", options = \["USD", "EUR"\]/);
-assert.match(source, /marketCapBillions >= minimumMarketCapBillionsInput/);
+assert.match(source, /not marketCapDataAvailable or marketCapBillions >= minimumMarketCapBillionsInput/);
 assert.match(source, /"Market cap \(bn\)"/);
 assert.ok(!/input\.(timeframe|symbol|time)\(/.test(source));
 

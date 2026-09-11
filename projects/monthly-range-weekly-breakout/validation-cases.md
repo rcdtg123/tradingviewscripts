@@ -54,8 +54,8 @@ Automated replay verifies:
 - Weekly-base volume at exactly 1.5x passes; 1.4999x fails.
 - Prior close already above the same ceiling, a bearish signal candle, missing
   volume history, or a non-Weekly chart fails closed.
-- Market cap at exactly 5.0 billion passes; 4.999 billion and missing
-  shares/FX data fail closed.
+- Market cap at exactly 5.0 billion passes and 4.999 billion fails. Missing
+  shares/FX data bypasses the market-cap gate while all other rules still apply.
 - The signal candle is excluded from the structural range and volume baseline.
 
 An exploratory replay over the supplied history through each cutoff produced
@@ -95,4 +95,6 @@ averages, so production volume remains ordinary total Weekly volume. The
 combined revision compiled and was saved in TradingView on 2026-09-11 as
 **Monthly + Weekly Base Breakout**. After adding the market-cap gate, it
 compiled and completed a 503-symbol S&P 500 `1W` scan on 2026-09-11 with the
-`Market cap (bn)` column populated and no request-limit errors.
+`Market cap (bn)` column populated and no request-limit errors. The subsequent
+missing-data-bypass revision also compiled and completed the same 503-symbol
+scan successfully.

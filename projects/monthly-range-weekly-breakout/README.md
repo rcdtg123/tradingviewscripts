@@ -45,9 +45,10 @@ not replace compilation in TradingView.
 identifies a Weekly-base breakout. The approved footprint feasibility attempt returned current Weekly footprint
 values but no usable previous-20-Week footprint average in Pine Screener. The
 production indicator therefore uses and clearly labels total Weekly volume. A
-symbol without enough Monthly, Weekly volume, shares-outstanding, or FX history
-returns `Data available = 0` and `Match = 0`. A stock below the configured
-market-cap floor always returns `Match = 0`.
+symbol without enough Monthly or Weekly volume history returns `Data available
+= 0` and `Match = 0`. A stock with a known market cap below the configured
+floor always returns `Match = 0`; missing shares or FX data bypasses only this
+gate and leaves `Market cap (bn)` blank.
 
 ## Status
 

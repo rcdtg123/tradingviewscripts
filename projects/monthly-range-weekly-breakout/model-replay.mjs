@@ -192,8 +192,8 @@ function breakoutMatches({
   if (
     !range ||
     priorWeeklyVolumes.length !== 20 ||
-    !Number.isFinite(marketCapBillions) ||
-    marketCapBillions < minimumMarketCapBillions
+    (Number.isFinite(marketCapBillions) &&
+      marketCapBillions < minimumMarketCapBillions)
   ) return false;
   const average = priorWeeklyVolumes.reduce((sum, value) => sum + value, 0) / 20;
   const multiple = weeklyVolume / average;
@@ -270,8 +270,8 @@ assert.equal(
     priorWeeklyVolumes: priorVolumes,
     marketCapBillions: Number.NaN,
   }),
-  false,
-  "missing market-cap data should fail closed",
+  true,
+  "missing market-cap data should bypass only the market-cap gate",
 );
 
 // PFG, week beginning 2026-04-20. The current Monthly detector had a
@@ -364,7 +364,7 @@ assert.doesNotMatch(source, /not na\(close\[120\]\)/);
 assert.match(source, /ta\.sma\(volume, volumeAverageLengthInput\)\[1\]/);
 assert.match(source, /input\.float\(5\.0, "Minimum market cap \(billions\)"/);
 assert.match(source, /input\.string\("USD", "Market-cap currency", options = \["USD", "EUR"\]/);
-assert.match(source, /marketCapBillions >= minimumMarketCapBillionsInput/);
+assert.match(source, /not marketCapDataAvailable or marketCapBillions >= minimumMarketCapBillionsInput/);
 assert.match(source, /"Market cap \(bn\)"/);
 
 console.log("Combined Monthly and Weekly-base breakout checks passed.");

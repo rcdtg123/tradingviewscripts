@@ -31,7 +31,9 @@ Before the signal can match, estimated market capitalization must be at least
 5.0 billion in the selected normalization currency (`USD` by default or
 `EUR`). The estimate uses FQ total shares outstanding with an FY fallback,
 multiplies by the tested Weekly close, and applies TradingView's daily FX rate.
-Missing shares or FX data fails closed; exactly 5.0 billion passes.
+When shares or FX data is missing, the market-cap gate is bypassed and the
+other signal rules still apply; `Market cap (bn)` remains blank. Exactly 5.0
+billion passes.
 
 The ten Pine Screener outputs are Match, upper/lower range, range months, range
 width, breakout percentage, Weekly volume, volume multiple, market

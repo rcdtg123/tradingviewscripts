@@ -6,8 +6,8 @@
   months and qualify when all other conditions pass.
 - One completed 3M candle cannot qualify.
 - Exact 1.1x Weekly volume passes; 1.0999x fails.
-- Market cap at exactly 5.0 billion passes; 4.999 billion and missing
-  shares/FX data fail closed.
+- Market cap at exactly 5.0 billion passes and 4.999 billion fails. Missing
+  shares/FX data bypasses the market-cap gate while all other rules still apply.
 - A bearish candle, prior close already above the ceiling, missing volume, or a
   non-Weekly chart fails.
 - Calendar-quarter assembly skips incomplete months. In May, April is excluded
@@ -41,6 +41,8 @@
 - Repeating that scan with EUR normalization also completed successfully and
   produced converted values; the saved screener setting was then restored to
   the USD default.
+- The subsequent missing-data-bypass revision compiled and completed another
+  503-symbol S&P 500 `1W` scan successfully.
 
 ## Boundary caveat
 

@@ -28,8 +28,9 @@ the 3M candles from monthly data because Pine Screener does not allow a direct
 4. Select the desired index source and filter `Match = 1`.
 5. Keep `Market cap (bn)` and `Data available` visible during validation.
 
-Stocks below the floor cannot match. Missing shares-outstanding or currency
-conversion data also fails closed instead of silently bypassing the filter.
+Stocks with a known market cap below the floor cannot match. Missing
+shares-outstanding or currency-conversion data bypasses only the market-cap
+gate, and `Market cap (bn)` remains blank for review.
 
 ## Important 3M behavior
 

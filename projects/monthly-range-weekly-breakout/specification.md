@@ -18,8 +18,9 @@ capitalization of at least 5.0 billion in the selected normalization currency
 (`USD` by default, with `EUR` also available). The estimate uses the latest FQ
 total shares outstanding, falls back to FY shares, multiplies by the tested
 Weekly close, and converts the quote currency through TradingView's daily FX
-rate. Missing shares or FX data fails closed. Equality at exactly 5.0 billion
-passes.
+rate. When shares or FX data is missing, the market-cap gate is bypassed and
+the other signal rules still apply; `Market cap (bn)` remains blank. Equality
+at exactly 5.0 billion passes.
 
 If the current Weekly candle is developing, the indicator reports bar `[1]`.
 If the last Weekly candle is already confirmed, it reports that candle. Every

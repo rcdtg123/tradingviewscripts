@@ -67,7 +67,7 @@ float marketCapBillions =
      not na(totalSharesOutstanding) and not na(close) and not na(marketCapFxRate) ?
      totalSharesOutstanding * close * marketCapFxRate / 1000000000.0 : na
 bool marketCapDataAvailable = not na(marketCapBillions)
-bool marketCapEligible = marketCapDataAvailable and marketCapBillions >= minimumMarketCapBillionsInput
+bool marketCapEligible = not marketCapDataAvailable or marketCapBillions >= minimumMarketCapBillionsInput
 
 //──────────────────────────────────────────────────────────────────────────────
 // Monthly range detector
@@ -353,7 +353,6 @@ float weeklyCandlePercent = open != 0.0 ? (close - open) / math.abs(open) * 100.
 
 bool commonDataAvailable =
      isWeeklyTimeframe and
-     marketCapDataAvailable and
      not na(volume) and
      not na(priorAverageVolume) and
      not na(volumeMultiple) and

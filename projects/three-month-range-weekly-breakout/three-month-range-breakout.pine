@@ -50,7 +50,7 @@ float marketCapBillions =
      not na(totalSharesOutstanding) and not na(close) and not na(marketCapFxRate) ?
      totalSharesOutstanding * close * marketCapFxRate / 1000000000.0 : na
 bool marketCapDataAvailable = not na(marketCapBillions)
-bool marketCapEligible = marketCapDataAvailable and marketCapBillions >= minimumMarketCapBillionsInput
+bool marketCapEligible = not marketCapDataAvailable or marketCapBillions >= minimumMarketCapBillionsInput
 
 f_detectThreeMonthRange(
      int minimumRangeMonths,
@@ -213,7 +213,6 @@ float weeklyCandlePercent = open != 0.0 ? (close - open) / math.abs(open) * 100.
 
 bool dataAvailable =
      isWeeklyTimeframe and
-     marketCapDataAvailable and
      hasMinimumHistory and
      not na(threeMonthUpperRange) and
      not na(threeMonthLowerRange) and
