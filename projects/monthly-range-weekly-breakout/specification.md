@@ -1,139 +1,110 @@
-# Monthly Range + Weekly Breakout Specification
+# Combined Monthly and Weekly-Base Breakout Specification
 
 ## Signal definition
 
-The indicator emits `Match = 1` only when all conditions are true for the latest
-completed Weekly candle:
+The indicator runs in Pine Screener on `1W` and emits `Match = 1` when either
+of two independent branches qualifies on the latest completed Weekly candle:
 
-1. The chart/screener timeframe is `1W`.
-2. At least 120 months of symbol history are available to the Monthly request.
-3. A qualifying Monthly range existed before the breakout week.
-4. The Weekly close crossed from at or below the range ceiling to strictly
-   above it, including the configured breakout buffer.
-5. The breakout week's total volume is at least 1.2 times the average total
-   volume of the previous 20 completed Weekly candles.
-6. The breakout Weekly candle is bullish (`close > open`).
+1. `Signal type = 1`: breakout from a range built from completed Monthly bars.
+2. `Signal type = 2`: breakout from a compact 6-12 week base.
 
-If the current Weekly candle is still developing, the indicator evaluates bar
-`[1]`. If the last Weekly bar is already confirmed, such as outside an active
-market week, it evaluates that bar directly. This prevents both repainting and
-an unnecessary extra-week delay.
+Both branches require a bullish Weekly candle, a strict close across the
+pre-breakout ceiling, and elevated total Weekly volume relative to the prior 20
+completed weeks. Total volume is a participation proxy, not measured buy
+volume.
 
-## Monthly range detector
+If the current Weekly candle is developing, the indicator reports bar `[1]`.
+If the last Weekly candle is already confirmed, it reports that candle. Every
+structural boundary uses bars preceding the candle being tested.
 
-The detector executes in a `1M` `request.security()` context. It sees only
-completed Monthly candles (`[1]` and older relative to that context) and
-evaluates rolling windows ending immediately before the candidate breakout
-month.
+## Monthly-consolidation branch
 
-Default inputs:
+The Monthly detector remains the long-duration pattern used for PFG. It runs in
+one `1M` `request.security()` context and searches between the configured
+minimum and maximum duration, with defaults of 6 and 120 months.
 
-| Input | Default | Allowed range |
-| --- | ---: | ---: |
-| Historical Monthly candles | 120 | fixed |
-| Minimum range duration | 6 months | 6-24 |
-| Maximum range duration | 120 months | 6-120 |
-| Minimum upper touches | 2 | 2-10 |
-| Minimum lower touches | 2 | 2-10 |
-| Boundary touch tolerance | 3% | 0.25-10% |
-| Minimum close containment | 80% | 50-100% |
-| Maximum range width | 40% of midpoint | 5-200% |
-| Maximum months since an upper touch | 3 | 1-12 |
+For each duration it:
 
-For every candidate duration from the configured minimum through maximum:
+1. Finds the highest high and lowest low.
+2. Averages highs and lows within the 3% touch tolerance of those extremes.
+3. Requires at least two upper and two lower touches.
+4. Requires touch span of at least six months and a recent upper touch.
+5. Requires 80% close containment, no materially broken close, and width no
+   greater than 40% of the boundary midpoint.
+6. Selects by longest touch span, longest window, most touches, then narrowest
+   width.
 
-1. Find the highest Monthly high and lowest Monthly low.
-2. Treat highs within the touch tolerance of the extreme high as upper touches;
-   treat lows within the tolerance of the extreme low as lower touches.
-3. Average qualifying highs and lows to form the upper and lower clustered
-   boundaries.
-4. Require the configured number of touches at each boundary.
-5. Require the oldest and newest boundary interactions to span at least the
-   minimum range duration.
-6. Require an upper-boundary touch within the configured recent-touch window.
-7. Require at least the configured percentage of Monthly closes to be between
-   the clustered boundaries.
-8. Reject a candidate if any close is materially outside the boundaries by more
-   than the boundary tolerance.
-9. Reject a candidate whose boundary-to-boundary width exceeds the configured
-   percentage of their midpoint.
+Ten years is a maximum search horizon, not a listing-age requirement. Monthly
+history is sufficient when the configured minimum number of completed Monthly
+candles exists. This permits newer listings to use the Monthly branch when
+their actual structure qualifies.
 
-When multiple windows qualify, choose deterministically by:
+The default Monthly breakout volume threshold is `1.1x`. This catches PFG's
+2026-04-20 breakout, whose total Weekly volume was approximately `1.176x` its
+prior-20-Week average.
 
-1. Longest boundary-touch span.
-2. Longest candidate window.
-3. Highest combined upper/lower touch count.
-4. Narrowest percentage width.
+## Weekly-base branch
 
-## Weekly breakout
+The Weekly-base detector evaluates only completed weeks before the candidate
+breakout. Defaults:
 
-For the Weekly candle being evaluated:
+| Input | Default |
+| --- | ---: |
+| Minimum base duration | 6 weeks |
+| Maximum base duration | 12 weeks |
+| Minimum resistance touches | 2 |
+| Resistance touch tolerance | 3% |
+| Maximum base width | 40% of midpoint |
+| Maximum weeks since resistance touch | 3 |
+| Breakout volume multiple | 1.5x |
 
-```text
-breakout boundary = monthly upper boundary * (1 + breakout buffer / 100)
-```
+For each 6-12 week candidate window:
 
-A breakout requires:
+1. The ceiling is the average of highs within 3% of the window's highest high.
+2. The floor is the window's lowest low.
+3. At least two resistance touches must span at least six weeks.
+4. A resistance touch must have occurred in the latest three completed weeks.
+5. Every close must remain inside the base and width must not exceed 40%.
+6. The signal candle must cross from at or below the ceiling to strictly above
+   it, close bullish, and reach at least `1.5x` prior-20-Week volume.
 
-```text
-weekly close > breakout boundary
-previous weekly close <= breakout boundary
-```
+These controls distinguish a short base from a one-week spike. With data cut
+off at 2026-05-26, SNOW selects a nine-week base with an upper boundary near
+`177.02`, a lower boundary of `118.30`, and `2.748x` volume on the breakout.
 
-The default breakout buffer is 0%, preserving the requested strict close above
-the range. It is configurable up to 5% for later tuning.
+## Volume calculation
 
-## Weekly volume confirmation
-
-The initial Plan B feasibility scan proved that Weekly footprint values are
-available for the current bar in Pine Screener, but a stable previous-20-Week
-footprint series is not: the footprint buy-volume average and multiple were
-`na` across the S&P 500 scan. The approved Plan A fallback therefore uses
-ordinary total Weekly volume and labels it accordingly.
-
-For each Weekly candle:
+Both branches use:
 
 ```text
-prior average = SMA(weekly volume, 20)[1]
-volume multiple = weekly volume / prior average
+prior average = SMA(Weekly total volume, 20)[1]
+volume multiple = current Weekly total volume / prior average
 ```
 
-The default gates are:
-
-```text
-volume multiple >= 1.2
-weekly close > weekly open
-```
-
-This is a buying-pressure proxy, not measured buy volume. The bullish candle
-requires upward Weekly price progress, while the relative-volume gate requires
-elevated participation. CVD remains unsuitable as the primary threshold because
-it is anchor-dependent cumulative net delta.
-
-Missing volume or history data sets `Data available = 0` and `Match = 0`.
+The signal candle is excluded from its own baseline. CVD is not a required
+gate because both PFG and SNOW demonstrate that a valid bullish breakout can
+have non-positive Weekly CVD delta.
 
 ## Screener output contract
 
-The indicator exposes ten Pine Screener columns:
+The ten output columns are:
 
 1. `Match`
-2. `Upper range`
-3. `Lower range`
-4. `Range months`
-5. `Range width %`
-6. `Breakout %`
-7. `Weekly volume`
+2. `Signal type` (`0` none, `1` Monthly, `2` Weekly base)
+3. `Upper range`
+4. `Lower range`
+5. `Range length` (months for type 1; weeks for type 2)
+6. `Range width %`
+7. `Breakout %`
 8. `Volume multiple`
 9. `Weekly candle %`
 10. `Data available`
 
-It also exposes one `Monthly range Weekly breakout` alert condition. In Pine
-Screener, filter `Match` equal to `1` to return only qualifying symbols.
+Filter `Match = 1` in Pine Screener. Use `Signal type` to separate the two
+setups when desired.
 
-## Request and execution budget
+## Request budget
 
-- One `request.security()` call for Monthly range calculations, limited with
-  `calc_bars_count` to the required history plus warm-up.
-- Main indicator history limited to enough Weekly bars for the 20-Week baseline
-  and confirmation offsets.
-- Total: one request path, below Pine Screener's five-call limit.
+- One Monthly `request.security()` tuple.
+- Weekly-base and volume calculations run directly in the `1W` context.
+- Total request count: one, below Pine Screener's five-request limit.

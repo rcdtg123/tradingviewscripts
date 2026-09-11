@@ -378,3 +378,16 @@ its own project directory, with all links and test paths updated atomically.
 2. **Previous 20 completed Weekly buy-volume values**.
 3. **Only the latest completed Weekly breakout**.
 4. **1.2x starting buy-volume multiple**.
+
+## Combined revision — 2026-09-11
+
+Cutoff backtests changed the production design without altering the historical
+record above:
+
+- PFG's 2026-04-20 Monthly-range breakout used 1.176x prior-20-Week volume, so
+  the Monthly branch default is now 1.1x.
+- SNOW's 2026-05-26 move was not a qualifying six-month Monthly consolidation;
+  it is handled by a separate 6-12 week base branch with a stricter 1.5x volume
+  threshold and resistance/width controls.
+- The 120-Month setting is now a maximum search horizon. Minimum required
+  history follows the configured minimum Monthly range duration.

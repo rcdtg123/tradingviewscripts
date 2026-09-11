@@ -4,9 +4,12 @@
 
 - Existing indicator: `pine/monthly-close-support.pine` with its specification
   and regression tests in the current legacy layout.
-- Pine Screener indicator: [`projects/monthly-range-weekly-breakout/README.md`](projects/monthly-range-weekly-breakout/README.md),
-  detecting a touch-confirmed Monthly range and a bullish Weekly breakout with
-  at least 1.2x the previous 20-Week average total volume.
+- Combined Pine Screener indicator: [`projects/monthly-range-weekly-breakout/README.md`](projects/monthly-range-weekly-breakout/README.md),
+  detecting either a Monthly consolidation breakout or a shorter Weekly-base
+  breakout with branch-specific relative-volume thresholds.
+- Three-month-candle variant: [`projects/three-month-range-weekly-breakout/README.md`](projects/three-month-range-weekly-breakout/README.md),
+  detecting a minimum six-month consolidation from completed `3M` candles and
+  confirming its breakout on a Weekly close.
 
 New Pine use cases will use one directory per project under `projects/`. The
 existing indicator can be migrated into that layout later as a dedicated,
