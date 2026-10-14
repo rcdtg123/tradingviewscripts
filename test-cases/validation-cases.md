@@ -191,33 +191,6 @@ accepting these dates or prices as exact.
     197.0038 overlaps established Monthly-low support near 194.93, so established
     M support wins and SAP displays no RT1 under these data and defaults.
 
-## Stale resistance latch case
-
-A zone with four or more qualifying lows that was approached from below during
-a prior decline can become permanently latched as resistance.  The only existing
-unlatch path fires when `close < approachBoundary − 0.25 × ATR`; if price
-recovers far above the zone without revisiting that boundary, the latch never
-clears.  The zone then sits in the `resistanceZones` list (invisible, since it
-is below current price) rather than `supportZones`, so approach alerts and buy-
-volume alerts never fire.
-
-Concrete example (BAC, March–October 2026): zone 48.875 (5 lows) was latched
-on 2026-03-31 when BAC crossed the resistance approach boundary (~47.93) going
-upward after falling to 46.115.  BAC then recovered to 63+ and never revisited
-the ~47.6 rearm floor, so the latch persisted through October 2026.  When BAC
-fell back from 54 to 49.83 on 2026-10-14, the zone was still in
-`resistanceZones` and the support approach alert could not fire.
-
-Expected behaviour after the fix:
-
-1. When a latched resistance zone's live price exceeds `center + 0.25 × ATR`,
-   the latch is cleared and all resistance cycle flags are reset.
-2. The zone is reclassified as support on the next shortlist computation and
-   becomes eligible for approach and reached alerts.
-3. The fix is symmetric to the existing support rearm (`close > approachBoundary
-   + 0.25 × ATR` resets all support flags); the resistance latch now has both a
-   downward-rearm and an upward-rearm path.
-
 ## Monthly zone-center-shift case
 
 When a completed monthly bar shifts a zone's median center (e.g. adding the
