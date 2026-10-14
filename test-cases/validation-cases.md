@@ -191,27 +191,6 @@ accepting these dates or prices as exact.
     197.0038 overlaps established Monthly-low support near 194.93, so established
     M support wins and SAP displays no RT1 under these data and defaults.
 
-## Monthly zone-center-shift case
-
-When a completed monthly bar shifts a zone's median center (e.g. adding the
-September 2026 low of 230.88 shifts MCD's zone from 229.70 to 230.58), the
-updated center appears with a fresh state (`supportReachArmed = false`).  If
-live price is already inside the new approach band when the shift occurs, all
-three standard arming paths fail because the previous price was never above
-the new approach boundary.
-
-Expected behaviour after the fix:
-
-1. On the first Daily bar of each new month, any freshly-detected support zone
-   whose center has not yet been approached is pre-armed when live price falls
-   within its approach band.  No approach alert is sent for this pre-arm.
-2. The subsequent downward crossing of the center emits exactly one
-   `M_REACHED` alert through the normal lifecycle.
-3. If price is above the approach boundary, or below the support center, no
-   pre-arm fires.
-4. If the zone was already armed or approached before the month boundary, the
-   existing state is unchanged.
-
 ## Support buy-volume cases
 
 1. Run the alert on 1D. Footprint data unavailable or any other alert interval:
