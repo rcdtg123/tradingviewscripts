@@ -1161,6 +1161,20 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
                 array.set(breakout8xSent, stateIndex, false)
                 f_unlatchResistance(resistance)
 
+            // Symmetric upward rearm: when price rises meaningfully above the
+            // zone center the resistance cycle is stale and must not block the
+            // zone from being reclassified as support on a later approach from
+            // above. Without this, a zone touched from below during a prior
+            // decline (e.g. BAC at ~47 in March 2026 crossing 48.875 zone on
+            // recovery) keeps its latch indefinitely once price recovers to 53+
+            // and never drops back to the ~47.6 downward rearm boundary.
+            if f_isLatchedResistance(resistance) and close > resistance + rearmDistance
+                array.set(resistanceReachedSent, stateIndex, false)
+                array.set(breakout2xSent, stateIndex, false)
+                array.set(breakout4xSent, stateIndex, false)
+                array.set(breakout8xSent, stateIndex, false)
+                f_unlatchResistance(resistance)
+
             bool reachedResistance =
                  f_isLatchedResistance(resistance) and
                  not na(previousLivePrice) and previousLivePrice < resistance and
