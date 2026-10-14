@@ -1001,6 +1001,18 @@ if barstate.isrealtime and barstate.islast and not na(confirmedDailyAtr)
             if crossedApproachDown
                 array.set(supportReachArmed, stateIndex, true)
 
+            // When a completed monthly bar shifts a zone's center (e.g. a new
+            // low changes the cluster median), the updated center gets a fresh
+            // stateIndex while price may already sit inside the new approach band.
+            // Pre-arm such zones so a subsequent center crossing can fire a
+            // reached alert—without sending an approach alert.
+            if newConfirmedMonth and
+               not array.get(approachSent, stateIndex) and
+               not array.get(supportReachArmed, stateIndex) and
+               not array.get(reachedSent, stateIndex) and
+               close >= support and close <= approachBoundary
+                array.set(supportReachArmed, stateIndex, true)
+
             // Exact support reaches require an observed downward live-price
             // crossing. A new Daily bar opening completely below the center is
             // a gap-through, not an exact reach; opening exactly at it counts.
